@@ -24,24 +24,41 @@
 
 /*
   ball_collection_test.c
-  Detects ball candidate -> approach while collector spins -> stop when center sensor says ball is inside.
+  3-phase robust cycle:
+  SEARCHING -> COLLECTING -> DEPOSITING -> reset back to SEARCHING
 */
 
-const int FRONT_BELOW_BALL_MIN = 1400;
-const int FRONT_BELOW_BALL_MAX = 3600;
-const int FRONT_UPPER_OBSTACLE_MIN = 1200;
-const int CENTER_BALL_COLLECT_MIN = 1200;
+const int FRONT_LOWER_BALL_MIN = 900;
+const int FRONT_UPPER_BALL_MAX = 900;
+const int CENTER_BALL_COLLECT_MIN = 1300;
+const int BACK_STABLE_FLUCT_LIMIT = 300;
 
-const int DRIVE_APPROACH_POWER = 95;
-const int DRIVE_CREEP_POWER = 65;
-const int DRIVE_SCAN_POWER = 55;
-const int DRIVE_AVOID_POWER = 75;
-const int INITIAL_BALL_SEARCH_TIMEOUT_MS = 1800;
-const int INITIAL_BALL_CONFIRM_COUNT = 2;
-const int DRIVE_BOUNDARY_REVERSE_POWER = 85;
-const int DRIVE_BOUNDARY_REVERSE_MS = 1500;
-const int BOUNDARY_ALIGN_TURN_POWER = 55;
+const int SEARCH_FORWARD_MS = 1000;
+const int SEARCH_MAX_CYCLES = 4;
+const int SEARCH_ALIGN_TIMEOUT_MS = 5000;
+
+const int COLLECT_TIMEOUT_MS = 3000;
+
+const int DEPOSIT_INITIAL_REVERSE_MS = 4000;
+const int DEPOSIT_STEP_REVERSE_MS = 1000;
+const int DEPOSIT_TIMEOUT_MS = 10000;
+const int DEPOSIT_STABILITY_SAMPLE_MS = 400;
+const int DEPOSIT_SETTLE_MS = 120;
+
+const int DRIVE_FORWARD_POWER = 85;
+const int DRIVE_COLLECT_POWER = 90;
+const int DRIVE_REVERSE_POWER = 80;
+const int DRIVE_TURN_POWER = 60;
 const int COLLECTOR_POWER = 127;
+
+const int PHASE_SEARCHING = 0;
+const int PHASE_COLLECTING = 1;
+const int PHASE_DEPOSITING = 2;
+
+int searchLowerTriggered = 0;
+int searchLowerPeak = 0;
+int searchLowerSum = 0;
+int searchLowerSamples = 0;
 
 void setDrive(int leftPower, int rightPower) {
   motor[leftWheel] = leftPower;
@@ -60,175 +77,231 @@ void turnRightInPlace(int power) {
   setDrive(power, -power);
 }
 
-int readCompassDirectionIndex() {
-  // Compass outputs are active-low: 0 means that direction is active.
-  if (SensorValue[noth] == 0) return 0; // N
-  if (SensorValue[east] == 0) return 1; // E
-  if (SensorValue[south] == 0) return 2; // S
-  if (SensorValue[west] == 0) return 3; // W
-  return -1;
-}
-
-int anyLineDetected() {
-  return (SensorValue[frontLeftLine] == 0 ||
-          SensorValue[frontRightLine] == 0 ||
-          SensorValue[backLeftLine] == 0 ||
-          SensorValue[backRightLine] == 0);
-}
-
 int isBallCandidate() {
   int lower = SensorValue[frontBelowLight];
   int upper = SensorValue[frontUpperLight];
-  return (lower >= FRONT_BELOW_BALL_MIN &&
-          lower <= FRONT_BELOW_BALL_MAX &&
-          upper < FRONT_UPPER_OBSTACLE_MIN);
+  return (lower > FRONT_LOWER_BALL_MIN &&
+          upper < FRONT_UPPER_BALL_MAX);
 }
 
-int isObstacleCandidate() {
-  return SensorValue[frontUpperLight] >= FRONT_UPPER_OBSTACLE_MIN;
+int isFrontLowerTriggered() {
+  return SensorValue[frontBelowLight] > FRONT_LOWER_BALL_MIN;
 }
 
 int isBallCollectedAtCenter() {
   return SensorValue[centerLight] > CENTER_BALL_COLLECT_MIN;
 }
 
-void recoverFromBoundary() {
-  int currentHeading = -1;
-
-  // Requested behavior: reverse first to clear the corner before rotating.
-  setDrive(-DRIVE_BOUNDARY_REVERSE_POWER, -DRIVE_BOUNDARY_REVERSE_POWER);
-  wait1Msec(DRIVE_BOUNDARY_REVERSE_MS);
-
-  while (true) {
-    if (SensorValue[west] == 0) {
-      break;
-    }
-
-    currentHeading = readCompassDirectionIndex();
-    if (currentHeading < 0) {
-      turnRightInPlace(BOUNDARY_ALIGN_TURN_POWER);
-      wait1Msec(40);
-      continue;
-    } else if (currentHeading == 3) {
-      break;
-    } else {
-      // Simple constant rotation until WEST is detected.
-      turnRightInPlace(BOUNDARY_ALIGN_TURN_POWER);
-    }
-
-    wait1Msec(40);
-  }
-
-  stopDrive();
-  wait1Msec(120);
+int isFacingWest() {
+  // Strict WEST condition:
+  // WEST must be active-low (0), and all other directions must be inactive (1).
+  return (SensorValue[west] == 0 &&
+          SensorValue[south] == 1 &&
+          SensorValue[east] == 1 &&
+          SensorValue[noth] == 1);
 }
 
-int acquireInitialBallTarget(int timeoutMs) {
-  int startTime = nSysTime;
-  int confirmCount = 0;
+void resetSearchLowerTracking() {
+  searchLowerTriggered = 0;
+  searchLowerPeak = 0;
+  searchLowerSum = 0;
+  searchLowerSamples = 0;
+}
 
-  while ((nSysTime - startTime) < timeoutMs) {
-    if (isBallCollectedAtCenter()) {
+void updateSearchLowerTracking() {
+  int lower = SensorValue[frontBelowLight];
+  if (lower > searchLowerPeak) searchLowerPeak = lower;
+  searchLowerSum += lower;
+  searchLowerSamples++;
+  if (isFrontLowerTriggered()) searchLowerTriggered = 1;
+}
+
+int runForwardAndCheckBall(int durationMs) {
+  int startTime = nSysTime;
+  while ((nSysTime - startTime) < durationMs) {
+    updateSearchLowerTracking();
+    if (isBallCandidate()) {
       stopDrive();
       return 1;
     }
-
-    if (anyLineDetected()) {
-      recoverFromBoundary();
-      continue;
-    }
-
-    if (isBallCandidate()) {
-      confirmCount++;
-      if (confirmCount >= INITIAL_BALL_CONFIRM_COUNT) {
-        stopDrive();
-        return 1;
-      }
-    } else {
-      confirmCount = 0;
-    }
-
-    if (isObstacleCandidate()) {
-      setDrive(-DRIVE_CREEP_POWER, -DRIVE_CREEP_POWER);
-      wait1Msec(140);
-      turnRightInPlace(DRIVE_AVOID_POWER);
-      wait1Msec(170);
-      continue;
-    }
-
-    // Initial detection mechanism: rotate and search until a valid ball candidate is found.
-    turnLeftInPlace(DRIVE_SCAN_POWER);
-    wait1Msec(25);
+    setDrive(DRIVE_FORWARD_POWER, DRIVE_FORWARD_POWER);
+    wait1Msec(20);
   }
-
   stopDrive();
   return 0;
 }
 
-int runBallCollection(int timeoutMs) {
+int rotateCCWToWestAndCheckBall(int timeoutMs) {
   int startTime = nSysTime;
-  int lastBallSeen = nSysTime - 1000;
-
-  motor[collectorMotor] = COLLECTOR_POWER;
-  if (acquireInitialBallTarget(INITIAL_BALL_SEARCH_TIMEOUT_MS)) {
-    writeDebugStreamLine("Initial ball lock acquired.");
-    lastBallSeen = nSysTime;
-  } else {
-    writeDebugStreamLine("Initial ball lock not found, continue scanning.");
-  }
-
   while ((nSysTime - startTime) < timeoutMs) {
-    if (isBallCollectedAtCenter()) {
+    updateSearchLowerTracking();
+    if (isBallCandidate()) {
       stopDrive();
-      writeDebugStreamLine("Collection success: center sensor triggered.");
       return 1;
     }
-
-    if (anyLineDetected()) {
-      writeDebugStreamLine("Boundary detected during collection. Recovering...");
-      recoverFromBoundary();
-      continue;
+    if (isFacingWest()) {
+      stopDrive();
+      return 0;
     }
+    turnLeftInPlace(DRIVE_TURN_POWER);
+    wait1Msec(20);
+  }
+  stopDrive();
+  return 0;
+}
 
-    if (isBallCandidate()) {
-      lastBallSeen = nSysTime;
-      setDrive(DRIVE_APPROACH_POWER, DRIVE_APPROACH_POWER);
-    } else if (isObstacleCandidate()) {
-      setDrive(-DRIVE_CREEP_POWER, -DRIVE_CREEP_POWER);
-      wait1Msec(180);
-      turnRightInPlace(DRIVE_AVOID_POWER);
-      wait1Msec(220);
-    } else if ((nSysTime - lastBallSeen) < 250) {
-      setDrive(DRIVE_CREEP_POWER, DRIVE_CREEP_POWER);
+void alignToWestCCW(int timeoutMs) {
+  int startTime = nSysTime;
+  while ((nSysTime - startTime) < timeoutMs && !isFacingWest()) {
+    turnLeftInPlace(DRIVE_TURN_POWER);
+    wait1Msec(20);
+  }
+  stopDrive();
+}
+
+void reverseKeepingWest(int durationMs) {
+  int startTime = nSysTime;
+  while ((nSysTime - startTime) < durationMs) {
+    if (isFacingWest()) {
+      setDrive(-DRIVE_REVERSE_POWER, -DRIVE_REVERSE_POWER);
     } else {
-      turnLeftInPlace(DRIVE_SCAN_POWER);
+      turnLeftInPlace(DRIVE_TURN_POWER);
+    }
+    wait1Msec(20);
+  }
+  stopDrive();
+}
+
+int measureBackSensorFluctuation(int sampleMs) {
+  int startTime = nSysTime;
+  int minVal = 4095;
+  int maxVal = 0;
+  int value = 0;
+
+  while ((nSysTime - startTime) < sampleMs) {
+    value = SensorValue[backLight];
+    if (value < minVal) minVal = value;
+    if (value > maxVal) maxVal = value;
+    wait1Msec(20);
+  }
+
+  return (maxVal - minVal);
+}
+
+int checkBackStabilityAfterCycle() {
+  // Important: sample only after reverse motion has fully stopped.
+  stopDrive();
+  wait1Msec(DEPOSIT_SETTLE_MS);
+  return measureBackSensorFluctuation(DEPOSIT_STABILITY_SAMPLE_MS);
+}
+
+int runSearchingPhase() {
+  int cycle = 0;
+  for (cycle = 0; cycle < SEARCH_MAX_CYCLES; cycle++) {
+    resetSearchLowerTracking();
+    writeDebugStreamLine("SEARCH cycle %d/%d", cycle + 1, SEARCH_MAX_CYCLES);
+
+    if (runForwardAndCheckBall(SEARCH_FORWARD_MS)) {
+      writeDebugStreamLine("Ball detected during forward search.");
+      return PHASE_COLLECTING;
     }
 
-    wait1Msec(25);
+    if (rotateCCWToWestAndCheckBall(SEARCH_ALIGN_TIMEOUT_MS)) {
+      writeDebugStreamLine("Ball detected while aligning to WEST.");
+      return PHASE_COLLECTING;
+    }
+
+    if (searchLowerSamples > 0) {
+      writeDebugStreamLine(
+        "SEARCH lower-tracking: triggered=%d peak=%d avg=%d",
+        searchLowerTriggered,
+        searchLowerPeak,
+        (searchLowerSum / searchLowerSamples)
+      );
+    }
+  }
+
+  writeDebugStreamLine("SEARCH completed 4 cycles with no ball. Go DEPOSIT.");
+  return PHASE_DEPOSITING;
+}
+
+int runCollectingPhase() {
+  int startTime = nSysTime;
+  writeDebugStreamLine("COLLECTING started.");
+
+  // Immediate handoff: if ball is already inside, skip collect motion and deposit now.
+  if (isBallCollectedAtCenter()) {
+    stopDrive();
+    writeDebugStreamLine("COLLECTING immediate success. Go DEPOSIT now.");
+    return PHASE_DEPOSITING;
+  }
+
+  while ((nSysTime - startTime) < COLLECT_TIMEOUT_MS) {
+    if (isBallCollectedAtCenter()) {
+      stopDrive();
+      writeDebugStreamLine("COLLECTING success before timeout. Go DEPOSIT.");
+      return PHASE_DEPOSITING;
+    }
+
+    setDrive(DRIVE_COLLECT_POWER, DRIVE_COLLECT_POWER);
+    wait1Msec(20);
   }
 
   stopDrive();
-  writeDebugStreamLine("Collection timeout.");
-  return 0;
+  writeDebugStreamLine("COLLECTING timeout (3s). Reset to SEARCH.");
+  return PHASE_SEARCHING;
+}
+
+int runDepositingPhase() {
+  int phaseStart = nSysTime;
+  int fluctuation = 0;
+  int depositCycle = 1;
+
+  writeDebugStreamLine("DEPOSITING started.");
+  alignToWestCCW(SEARCH_ALIGN_TIMEOUT_MS);
+  reverseKeepingWest(DEPOSIT_INITIAL_REVERSE_MS);
+
+  while ((nSysTime - phaseStart) < DEPOSIT_TIMEOUT_MS) {
+    fluctuation = checkBackStabilityAfterCycle();
+    writeDebugStreamLine(
+      "DEPOSIT cycle %d check: back fluctuation = %d",
+      depositCycle,
+      fluctuation
+    );
+
+    if (fluctuation <= BACK_STABLE_FLUCT_LIMIT) {
+      writeDebugStreamLine("DEPOSIT stable back sensor. Reset to SEARCH.");
+      return PHASE_SEARCHING;
+    }
+
+    alignToWestCCW(SEARCH_ALIGN_TIMEOUT_MS);
+    reverseKeepingWest(DEPOSIT_STEP_REVERSE_MS);
+    depositCycle++;
+  }
+
+  stopDrive();
+  writeDebugStreamLine("DEPOSIT timeout (10s). Forced reset to SEARCH.");
+  return PHASE_SEARCHING;
 }
 
 task main() {
+  int phase = PHASE_SEARCHING;
+
   clearDebugStream();
-  writeDebugStreamLine("Ball collection test started.");
+  writeDebugStreamLine("Ball collection state-machine test started.");
 
   while (true) {
-    int success = runBallCollection(12000);
-    stopDrive();
+    motor[collectorMotor] = COLLECTOR_POWER;
 
-    if (success) {
-      writeDebugStreamLine("Result: BALL COLLECTED.");
+    if (phase == PHASE_SEARCHING) {
+      phase = runSearchingPhase();
+    } else if (phase == PHASE_COLLECTING) {
+      phase = runCollectingPhase();
     } else {
-      writeDebugStreamLine("Result: FAILED OR TIMEOUT.");
+      phase = runDepositingPhase();
     }
 
-    wait1Msec(1200);
+    stopDrive();
+    wait1Msec(80);
   }
 }
-
-
-

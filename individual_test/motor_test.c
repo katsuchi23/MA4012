@@ -27,7 +27,7 @@
 
 const int DRIVE_TEST_POWER = 90;
 const int AUX_TEST_POWER = 100;
-const int TEST_DURATION_MS = 1200;
+const int TEST_DURATION_MS = 1000;
 const int PAUSE_MS = 400;
 
 void setDrive(int leftPower, int rightPower) {
@@ -112,4 +112,3 @@ task main() {
     wait1Msec(1000);
   }
 }
-

@@ -36,6 +36,14 @@ If your wiring is different, only update the `#pragma config` block in each file
   - Prints raw compass states `W/S/E/N` and mapped heading.
   - Compass is active-low (`0 = active direction`), so rotate robot manually and verify.
 
+- `forward_motion_test.c`
+  - Simple straight forward wheel motion test.
+  - Useful to quickly verify both wheel motors move robot forward correctly.
+
+- `west_alignment_test.c`
+  - Wheel-only heading alignment test to WEST using compass.
+  - Rotates until WEST is detected (active-low compass), then stops.
+
 ### `functionality_testing/`
 
 - `ball_collection_test.c`
@@ -78,13 +86,15 @@ You should tune these on your real arena before match day.
 ## Recommended Bring-Up Order
 
 1. Run `individual_test/motor_test.c`.
-2. Run `individual_test/line_sensor_test.c`.
-3. Run `individual_test/light_sensor_test.c`.
-4. Run `individual_test/compass_test.c`.
-5. Run `functionality_testing/ball_collection_test.c`.
-6. Run `functionality_testing/ball_deposit_test.c`.
-7. Run `functionality_testing/boundary_check_test.c`.
-8. Run `competition_main.c`.
+2. Run `individual_test/forward_motion_test.c`.
+3. Run `individual_test/west_alignment_test.c`.
+4. Run `individual_test/line_sensor_test.c`.
+5. Run `individual_test/light_sensor_test.c`.
+6. Run `individual_test/compass_test.c`.
+7. Run `functionality_testing/ball_collection_test.c`.
+8. Run `functionality_testing/ball_deposit_test.c`.
+9. Run `functionality_testing/boundary_check_test.c`.
+10. Run `competition_main.c`.
 
 ## Debugging Notes
 
