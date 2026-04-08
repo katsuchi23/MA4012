@@ -8,11 +8,11 @@ This repo now has a clean script set for your competition robot:
 
 All scripts assume this hardware mapping:
 
-- Line sensors (digital): `dgtl1` front-left, `dgtl2` front-right, `dgtl3` back-left, `dgtl4` back-right.
-- Light sensors (analog): `in1` front-below, `in2` front-upper, `in3` center, `in4` back.
-- Compass (digital): `dgtl9` LSB, `dgtl10` bit1, `dgtl11` bit2, `dgtl12` MSB.
-- Unused digital reserved: `dgtl5`-`dgtl8` as `sensorNone`.
-- Motors: `port1` right wheel, `port2` left wheel, `port3` collector, `port4` gate.
+- Line sensors (digital): `dgtl12` front-left, `dgtl11` front-right, `dgtl10` back-left, `dgtl9` back-right.
+- Light sensors (analog): `in4` front-below, `in3` front-upper, `in2` center, `in1` back.
+- Compass (digital): `dgtl3` west, `dgtl4` south, `dgtl5` east, `dgtl6` noth.
+- Unused digital reserved: `dgtl1`, `dgtl2`, `dgtl7`, `dgtl8` as `sensorNone`.
+- Motors: `port6` gate, `port7` collector, `port8` left wheel, `port9` right wheel (reversed).
 
 If your wiring is different, only update the `#pragma config` block in each file.
 
@@ -33,8 +33,8 @@ If your wiring is different, only update the `#pragma config` block in each file
   - Confirms arena boundary logic trigger points.
 
 - `compass_test.c`
-  - Prints raw compass bits, decimal code, and mapped heading (N/NE/E/SE/S/SW/W/NW).
-  - Rotate robot manually and verify sequence.
+  - Prints raw compass states `W/S/E/N` and mapped heading.
+  - Compass is active-low (`0 = active direction`), so rotate robot manually and verify.
 
 ### `functionality_testing/`
 
@@ -47,14 +47,14 @@ If your wiring is different, only update the `#pragma config` block in each file
 
 - `ball_deposit_test.c`
   - Runs deposit behavior:
-    - aligns robot to North using compass,
+    - aligns robot to East using compass,
     - reverses to collection area using back line + back light sensors,
     - opens/closes gate to drop ball.
 
 - `boundary_check_test.c`
   - Roomba-style movement:
     - drive forward continuously,
-    - when line sensors trigger, reverse + recover turn,
+    - when line sensors trigger, reverse (~1500ms) then compass-align to West,
     - continue moving.
 
 ### Main Competition Code
@@ -69,8 +69,8 @@ Each script has constants at the top for easy tuning, for example:
 
 - `FRONT_BELOW_BALL_MIN` / `FRONT_BELOW_BALL_MAX`
 - `FRONT_UPPER_OBSTACLE_MIN`
-- `CENTER_BALL_INSIDE_MIN`
-- `BACK_COLLECTION_NEAR_MIN`
+- `CENTER_BALL_COLLECT_MIN`
+- `BACK_DEPOSIT_TRIGGER_MIN`
 - `GATE_OPEN_SPEED` / `GATE_CLOSE_SPEED`
 
 You should tune these on your real arena before match day.
@@ -90,5 +90,6 @@ You should tune these on your real arena before match day.
 
 - If robot turns wrong way, swap signs in wheel helper functions.
 - If gate opens in wrong direction, swap `GATE_OPEN_SPEED` and `GATE_CLOSE_SPEED`.
-- If compass headings are wrong, verify bit wiring order (`LSB` to `MSB`).
+- Compass logic is active-low in these scripts: `0 = direction active`.
+- Line sensor logic is active-low in these scripts: `0 = boundary detected`, `1 = normal`.
 - If ball detection is unstable, tune sensor thresholds first before changing logic.
