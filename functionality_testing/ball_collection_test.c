@@ -29,7 +29,7 @@
 */
 
 const int FRONT_LOWER_BALL_MIN = 900;
-const int FRONT_UPPER_BALL_MAX = 900;
+const int FRONT_UPPER_BALL_MAX = 1000;
 const int CENTER_BALL_COLLECT_MIN = 1300;
 const int BACK_STABLE_FLUCT_LIMIT = 300;
 
