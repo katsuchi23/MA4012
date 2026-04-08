@@ -26,9 +26,7 @@
 */
 
 const int FORWARD_POWER = 90;
-const int FORWARD_RUN_MS = 3000;
 const int STOP_MS = 1000;
-const int REPEAT_FOREVER = 1; // 1 = loop forever, 0 = run once.
 
 void setDrive(int leftPower, int rightPower) {
   motor[leftWheel] = leftPower;
@@ -47,17 +45,9 @@ task main() {
   writeDebugStreamLine("Forward motion test started.");
 
   while (true) {
-    writeDebugStreamLine("Driving forward. power=%d duration=%dms", FORWARD_POWER, FORWARD_RUN_MS);
     setDrive(FORWARD_POWER, FORWARD_POWER);
-    wait1Msec(FORWARD_RUN_MS);
-
-    writeDebugStreamLine("Stopping for %dms", STOP_MS);
+    wait1Msec(STOP_MS);
     stopAll();
     wait1Msec(STOP_MS);
-
-    if (!REPEAT_FOREVER) {
-      writeDebugStreamLine("Forward motion test completed (single run).");
-      break;
-    }
   }
 }
