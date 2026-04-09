@@ -46,12 +46,20 @@ If your wiring is different, only update the `#pragma config` block in each file
 
 ### `functionality_testing/`
 
-- `ball_collection_test.c`
-  - Runs collection behavior:
-    - collector motor spins continuously,
-    - uses front-below + front-upper to decide ball vs obstacle,
-    - approaches ball,
-    - stops when center sensor confirms ball inside.
+- `searching_phase.c`
+  - SEARCHING phase logic module.
+  - Forward/search cycle with ball detection checks.
+  - Runnable standalone once for debugging (`task main` is one-shot).
+
+- `collecting_phase.c`
+  - COLLECTING phase logic module.
+  - Forward collect motion with center-sensor timeout behavior.
+  - Runnable standalone once for debugging (`task main` is one-shot).
+
+- `depositing_phase.c`
+  - DEPOSITING phase logic module.
+  - West alignment, reverse cycle, and back-sensor stability checks.
+  - Runnable standalone once for debugging (`task main` is one-shot).
 
 - `ball_deposit_test.c`
   - Runs deposit behavior:
@@ -91,10 +99,10 @@ You should tune these on your real arena before match day.
 4. Run `individual_test/line_sensor_test.c`.
 5. Run `individual_test/light_sensor_test.c`.
 6. Run `individual_test/compass_test.c`.
-7. Run `functionality_testing/ball_collection_test.c`.
-8. Run `functionality_testing/ball_deposit_test.c`.
-9. Run `functionality_testing/boundary_check_test.c`.
-10. Run `competition_main.c`.
+7. Run `functionality_testing/ball_deposit_test.c`.
+8. Run `functionality_testing/boundary_check_test.c`.
+9. Run `past_codes/main_competition.c` (includes searching/collecting/depositing phase files).
+10. Run `competition_main.c` if you want the non-split integrated version.
 
 ## Debugging Notes
 

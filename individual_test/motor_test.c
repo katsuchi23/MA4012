@@ -1,19 +1,18 @@
-#pragma config(Sensor, in4,    frontBelowLight, sensorAnalog)
-#pragma config(Sensor, in3,    frontUpperLight, sensorAnalog)
-#pragma config(Sensor, in2,    centerLight,    sensorAnalog)
-#pragma config(Sensor, in1,    backLight,      sensorAnalog)
-#pragma config(Sensor, dgtl12,  frontLeftLine,   sensorDigitalIn)
-#pragma config(Sensor, dgtl11,  frontRightLine,  sensorDigitalIn)
-#pragma config(Sensor, dgtl10,  backLeftLine,    sensorDigitalIn)
-#pragma config(Sensor, dgtl9,  backRightLine,   sensorDigitalIn)
-#pragma config(Sensor, dgtl1,  unusedD1,        sensorNone)
-#pragma config(Sensor, dgtl2,  unusedD2,        sensorNone)
-#pragma config(Sensor, dgtl7,  unusedD7,        sensorNone)
-#pragma config(Sensor, dgtl8,  unusedD8,        sensorNone)
-#pragma config(Sensor, dgtl3,  west,      sensorDigitalIn)
-#pragma config(Sensor, dgtl4,  south,     sensorDigitalIn)
-#pragma config(Sensor, dgtl5,  east,     sensorDigitalIn)
-#pragma config(Sensor, dgtl6,  noth,      sensorDigitalIn)
+#pragma config(Sensor, in5,    centerLight,    sensorAnalog)
+#pragma config(Sensor, in6,    backLight,      sensorAnalog)
+#pragma config(Sensor, in7,    frontUpperLight, sensorAnalog)
+#pragma config(Sensor, in8,    frontBelowLight, sensorAnalog)
+#pragma config(Sensor, dgtl1,  unusedD1,       sensorNone)
+#pragma config(Sensor, dgtl2,  unusedD2,       sensorNone)
+#pragma config(Sensor, dgtl3,  west,           sensorDigitalIn)
+#pragma config(Sensor, dgtl4,  south,          sensorDigitalIn)
+#pragma config(Sensor, dgtl5,  east,           sensorDigitalIn)
+#pragma config(Sensor, dgtl6,  noth,           sensorDigitalIn)
+#pragma config(Sensor, dgtl7,  unusedD7,       sensorNone)
+#pragma config(Sensor, dgtl8,  unusedD8,       sensorNone)
+#pragma config(Sensor, dgtl9,  yellow,         sensorDigitalOut)
+#pragma config(Sensor, dgtl10, green,          sensorDigitalOut)
+#pragma config(Sensor, dgtl11, red,            sensorDigitalOut)
 #pragma config(Motor,  port6,           gateMotor,     tmotorServoStandard, openLoop)
 #pragma config(Motor,  port7,           collectorMotor, tmotorVex393_MC29, openLoop)
 #pragma config(Motor,  port8,           rightWheel,    tmotorVex393_MC29, openLoop)
@@ -25,90 +24,16 @@
   Runs each motor one by one so you can verify wiring and direction quickly.
 */
 
-const int DRIVE_TEST_POWER = 90;
-const int AUX_TEST_POWER = 100;
-const int TEST_DURATION_MS = 1000;
-const int PAUSE_MS = 400;
 
-void setDrive(int leftPower, int rightPower) {
-  motor[leftWheel] = leftPower;
-  motor[rightWheel] = rightPower;
-}
-
-void stopAllMotors() {
-  motor[leftWheel] = 0;
-  motor[rightWheel] = 0;
-  motor[collectorMotor] = 0;
-  motor[gateMotor] = 0;
-}
 
 task main() {
   clearDebugStream();
   writeDebugStreamLine("Motor test started.");
 
   while (true) {
-    stopAllMotors();
-    wait1Msec(PAUSE_MS);
 
-    writeDebugStreamLine("Right wheel forward.");
-    motor[rightWheel] = DRIVE_TEST_POWER;
-    wait1Msec(TEST_DURATION_MS);
-    motor[rightWheel] = 0;
+    wait1Msec(100);
 
-    writeDebugStreamLine("Right wheel backward.");
-    motor[rightWheel] = -DRIVE_TEST_POWER;
-    wait1Msec(TEST_DURATION_MS);
-    motor[rightWheel] = 0;
-
-    wait1Msec(PAUSE_MS);
-
-    writeDebugStreamLine("Left wheel forward.");
-    motor[leftWheel] = DRIVE_TEST_POWER;
-    wait1Msec(TEST_DURATION_MS);
-    motor[leftWheel] = 0;
-
-    writeDebugStreamLine("Left wheel backward.");
-    motor[leftWheel] = -DRIVE_TEST_POWER;
-    wait1Msec(TEST_DURATION_MS);
-    motor[leftWheel] = 0;
-
-    wait1Msec(PAUSE_MS);
-
-    writeDebugStreamLine("Both wheels forward.");
-    setDrive(DRIVE_TEST_POWER, DRIVE_TEST_POWER);
-    wait1Msec(TEST_DURATION_MS);
-    stopAllMotors();
-
-    writeDebugStreamLine("Both wheels backward.");
-    setDrive(-DRIVE_TEST_POWER, -DRIVE_TEST_POWER);
-    wait1Msec(TEST_DURATION_MS);
-    stopAllMotors();
-
-    wait1Msec(PAUSE_MS);
-
-    writeDebugStreamLine("Collector motor spin.");
-    motor[collectorMotor] = AUX_TEST_POWER;
-    wait1Msec(999999);
-    motor[collectorMotor] = 0;
-
-    writeDebugStreamLine("Collector motor reverse.");
-    motor[collectorMotor] = -AUX_TEST_POWER;
-    wait1Msec(TEST_DURATION_MS);
-    motor[collectorMotor] = 0;
-
-    wait1Msec(PAUSE_MS);
-
-    writeDebugStreamLine("Gate motor open direction.");
-    motor[gateMotor] = AUX_TEST_POWER;
-    wait1Msec(TEST_DURATION_MS);
-    motor[gateMotor] = 0;
-
-    writeDebugStreamLine("Gate motor close direction.");
-    motor[gateMotor] = -AUX_TEST_POWER;
-    wait1Msec(TEST_DURATION_MS);
-    motor[gateMotor] = 0;
-
-    writeDebugStreamLine("Motor test cycle complete. Repeating...");
-    wait1Msec(1000);
+   	motor[collectorMotor] = 127;
   }
 }
