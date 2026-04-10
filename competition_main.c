@@ -8,12 +8,12 @@
 #pragma config(Sensor, dgtl4,  south,            sensorDigitalIn)
 #pragma config(Sensor, dgtl5,  east,             sensorDigitalIn)
 #pragma config(Sensor, dgtl6,  noth,             sensorDigitalIn)
-#pragma config(Sensor, dgtl7,  unusedD7,         sensorNone)
+#pragma config(Sensor, dgtl7,  gateEncoder,      sensorQuadEncoder)
 #pragma config(Sensor, dgtl8,  unusedD8,         sensorNone)
-#pragma config(Sensor, dgtl9,  yellow,           sensorDigitalOut)
-#pragma config(Sensor, dgtl10, green,            sensorDigitalOut)
-#pragma config(Sensor, dgtl11, red,              sensorDigitalOut)
-#pragma config(Motor,  port6,           gateMotor,      tmotorServoStandard, openLoop)
+#pragma config(Sensor, dgtl9,  unusedD9,         sensorNone)
+#pragma config(Sensor, dgtl10, unusedD10,        sensorNone)
+#pragma config(Sensor, dgtl11, unusedD11,        sensorNone)
+#pragma config(Motor,  port6,           gateMotor,      tmotorVex393_MC29, openLoop)
 #pragma config(Motor,  port7,           collectorMotor, tmotorVex393_MC29, openLoop)
 #pragma config(Motor,  port8,           rightWheel,     tmotorVex393_MC29, openLoop)
 #pragma config(Motor,  port9,           leftWheel,      tmotorVex393_MC29, openLoop, reversed)
@@ -21,28 +21,32 @@
 
 /*
   competition_main.c
-  Combined flow:
+  Combined one-shot flow:
   1) Searching phase
-  2) Transition: all 3 LEDs ON for ~2 seconds
+  2) Transition delay (2s)
   3) Collecting phase
+  4) Transition delay (2s) after center sensor collection success
+  5) Depositing phase
 */
+
+#define leftEncoder gateEncoder
 
 // -------------------------
 // Searching phase constants
 // -------------------------
 const int FRONT_LOWER_BALL_MIN = 1000;
 const int FRONT_UPPER_BALL_MAX = 700;
-const int BALL_DELTA_MIN = 500;
-const int BALL_CONFIRM_SAMPLES = 5;
-const int UPPER_SAFETY_BLOCK_MIN = 1800;
-const int SEARCH_SAFETY_REVERSE_MS = 700;
-const int SEARCH_SAFETY_REVERSE_POWER = 100;
 const int SEARCH_FORWARD_MS = 1000;
 const int SEARCH_PRE_ALIGN_SCAN_MS = 2000;
 const int SEARCH_ALIGN_TURN_POWER = 45;
 const int SEARCH_ALIGN_REVERSE_MS = 50;
 const int SEARCH_MAX_CYCLES = 3;
 const int SEARCH_ALIGN_TIMEOUT_MS = 5000;
+const int BALL_CONFIRM_SAMPLES = 5;
+const int BALL_DELTA_MIN = 500;
+const int UPPER_SAFETY_BLOCK_MIN = 1800;
+const int SEARCH_SAFETY_REVERSE_MS = 700;
+const int SEARCH_SAFETY_REVERSE_POWER = 100;
 const int DRIVE_FORWARD_POWER = 85;
 const int SEARCH_COLLECTOR_POWER = 127;
 
@@ -56,15 +60,40 @@ const int CENTER_BALL_COLLECT_MIN = 1300;
 const int COLLECT_TIMEOUT_MS = 1000;
 const int COLLECT_EXTRA_SPIN_TIMEOUT_MS = 5000;
 const int DRIVE_COLLECT_POWER = 90;
+const int COLLECT_PRE_TURN_POWER = 45;
+const int COLLECT_PRE_TURN_MS = 200;
 const int COLLECTOR_POWER = 200;
 
 const int COLLECT_RESULT_TIMEOUT = 0;
 const int COLLECT_RESULT_SUCCESS = 1;
 
 // -------------------------
+// Depositing phase constants
+// -------------------------
+const int BACK_SENSOR_DONE_MIN        = 2500;
+const int DEPOSIT_ALIGN_TIMEOUT_MS    = 5000;
+const int DEPOSIT_INITIAL_REVERSE_MS  = 3000;
+const int DEPOSIT_STEP_REVERSE_MS     = 1000;
+const int DEPOSIT_TIMEOUT_MS          = 10000;
+const int DRIVE_REVERSE_LEFT_POWER    = 80;
+const int DRIVE_REVERSE_RIGHT_POWER   = 60;
+const int DRIVE_TURN_POWER            = 60;
+
+const int GATE_ENCODER_TARGET = 90;
+const int GATE_ENCODER_POST_TARGET = 0;
+const int GATE_MIN_POWER = 35;
+const int GATE_MAX_POWER = 80;
+const int GATE_OPEN_HOLD_MS = 5000;
+const float GATE_PD_KP = 0.56;
+const float GATE_PD_KD = 0.35;
+
+const int DEPOSIT_RESULT_TIMEOUT = 0;
+const int DEPOSIT_RESULT_STABLE = 1;
+
+// -------------------------
 // Transition constants
 // -------------------------
-const int PHASE_TRANSITION_LED_MS = 1000;
+const int PHASE_TRANSITION_DELAY_MS = 2000;
 
 // -------------------------
 // Shared state
@@ -73,6 +102,10 @@ int searchLowerTriggered = 0;
 int searchLowerPeak = 0;
 int searchLowerSum = 0;
 int searchLowerSamples = 0;
+int depositSequenceHasRun = 0;
+int searchCenterDetected = 0;
+
+int isBallCollectedAtCenter();
 
 void setDrive(int leftPower, int rightPower) {
   motor[leftWheel] = leftPower;
@@ -91,12 +124,9 @@ void reverseStraight(int power) {
   setDrive(-power, -power);
 }
 
-void setStatusLeds(int yellowOn, int greenOn, int redOn) {
-  SensorValue[yellow] = yellowOn;
-  SensorValue[green] = greenOn;
-  SensorValue[red] = redOn;
-}
-
+// -------------------------
+// Searching phase
+// -------------------------
 int isBallCandidate() {
   int lower = SensorValue[frontBelowLight];
   int upper = SensorValue[frontUpperLight];
@@ -126,15 +156,10 @@ void resetSearchLowerTracking() {
 
 void updateSearchLowerTracking() {
   int lower = SensorValue[frontBelowLight];
-  if (lower > searchLowerPeak) {
-    searchLowerPeak = lower;
-  }
+  if (lower > searchLowerPeak) searchLowerPeak = lower;
   searchLowerSum += lower;
   searchLowerSamples++;
-
-  if (isFrontLowerTriggered()) {
-    searchLowerTriggered = 1;
-  }
+  if (isFrontLowerTriggered()) searchLowerTriggered = 1;
 }
 
 int handleUpperSafetyReverse() {
@@ -158,6 +183,13 @@ int runForwardAndCheckBall(int durationMs) {
   int ballConfirmCount = 0;
 
   while ((nSysTime - startTime) < durationMs) {
+    if (isBallCollectedAtCenter()) {
+      searchCenterDetected = 1;
+      stopDrive();
+      writeDebugStreamLine("SEARCH noticed center sensor ball capture.");
+      return 1;
+    }
+
     updateSearchLowerTracking();
 
     if (handleUpperSafetyReverse()) {
@@ -188,6 +220,13 @@ int rotateCCWForScanAndCheckBall(int durationMs) {
   int ballConfirmCount = 0;
 
   while ((nSysTime - startTime) < durationMs) {
+    if (isBallCollectedAtCenter()) {
+      searchCenterDetected = 1;
+      stopDrive();
+      writeDebugStreamLine("SEARCH noticed center sensor ball capture.");
+      return 1;
+    }
+
     updateSearchLowerTracking();
 
     if (handleUpperSafetyReverse()) {
@@ -218,6 +257,13 @@ int rotateCCWToWestAndCheckBall(int timeoutMs) {
   int ballConfirmCount = 0;
 
   while ((nSysTime - startTime) < timeoutMs) {
+    if (isBallCollectedAtCenter()) {
+      searchCenterDetected = 1;
+      stopDrive();
+      writeDebugStreamLine("SEARCH noticed center sensor ball capture.");
+      return 1;
+    }
+
     updateSearchLowerTracking();
 
     if (handleUpperSafetyReverse()) {
@@ -252,28 +298,32 @@ int rotateCCWToWestAndCheckBall(int timeoutMs) {
 
 int runSearchingPhase() {
   int cycle = 0;
+  searchCenterDetected = 0;
 
-  setStatusLeds(1, 0, 0); // searching = yellow ON
-  writeDebugStreamLine("SEARCH phase started (max %d cycles).", SEARCH_MAX_CYCLES);
+  writeDebugStreamLine("SEARCH phase started (one-shot, max %d cycles).", SEARCH_MAX_CYCLES);
 
   for (cycle = 0; cycle < SEARCH_MAX_CYCLES; cycle++) {
+    if (isBallCollectedAtCenter()) {
+      searchCenterDetected = 1;
+      stopDrive();
+      writeDebugStreamLine("SEARCH immediate center sensor detection.");
+      return SEARCH_RESULT_BALL_FOUND;
+    }
+
     resetSearchLowerTracking();
     writeDebugStreamLine("SEARCH cycle %d/%d", cycle + 1, SEARCH_MAX_CYCLES);
 
     if (runForwardAndCheckBall(SEARCH_FORWARD_MS)) {
-      setStatusLeds(1, 1, 1);
       writeDebugStreamLine("Ball detected during forward search.");
       return SEARCH_RESULT_BALL_FOUND;
     }
 
     if (rotateCCWForScanAndCheckBall(SEARCH_PRE_ALIGN_SCAN_MS)) {
-      setStatusLeds(1, 1, 1);
-      writeDebugStreamLine("Ball detected during pre-alignment scan.");
+      writeDebugStreamLine("Ball detected during pre-alignment scan rotation.");
       return SEARCH_RESULT_BALL_FOUND;
     }
 
     if (rotateCCWToWestAndCheckBall(SEARCH_ALIGN_TIMEOUT_MS)) {
-      setStatusLeds(1, 1, 1);
       writeDebugStreamLine("Ball detected while aligning to WEST.");
       return SEARCH_RESULT_BALL_FOUND;
     }
@@ -288,10 +338,13 @@ int runSearchingPhase() {
     }
   }
 
-  writeDebugStreamLine("SEARCH finished all cycles with no ball.");
+  writeDebugStreamLine("SEARCH finished all %d cycles with no ball.", SEARCH_MAX_CYCLES);
   return SEARCH_RESULT_NO_BALL;
 }
 
+// -------------------------
+// Collecting phase
+// -------------------------
 int isBallCollectedAtCenter() {
   return SensorValue[centerLight] > CENTER_BALL_COLLECT_MIN;
 }
@@ -299,83 +352,263 @@ int isBallCollectedAtCenter() {
 int runCollectingPhase() {
   int startTime = nSysTime;
   writeDebugStreamLine("COLLECTING started.");
-  setStatusLeds(0, 0, 0);
 
   if (isBallCollectedAtCenter()) {
     stopDrive();
-    setStatusLeds(0, 1, 0);
     writeDebugStreamLine("COLLECTING immediate success (ball already at center).");
     return COLLECT_RESULT_SUCCESS;
   }
 
+  // Pre-align left-offset front-below sensor before forward retrieval.
+  turnLeftInPlace(COLLECT_PRE_TURN_POWER);
+  wait1Msec(COLLECT_PRE_TURN_MS);
+  stopDrive();
+
   while ((nSysTime - startTime) < COLLECT_TIMEOUT_MS) {
     if (isBallCollectedAtCenter()) {
       stopDrive();
-      setStatusLeds(0, 1, 0);
       writeDebugStreamLine("COLLECTING success before timeout.");
       return COLLECT_RESULT_SUCCESS;
     }
 
     setDrive(DRIVE_COLLECT_POWER, DRIVE_COLLECT_POWER);
-    setStatusLeds(1, 0, 0);
     wait1Msec(20);
   }
 
   stopDrive();
-  setStatusLeds(0, 0, 0);
-  writeDebugStreamLine("COLLECTING forward timeout (3s). Extra collector spin starts.");
+  writeDebugStreamLine("COLLECTING forward timeout (1s). Extra collector spin starts.");
 
   startTime = nSysTime;
   motor[collectorMotor] = COLLECTOR_POWER;
-
   while ((nSysTime - startTime) < COLLECT_EXTRA_SPIN_TIMEOUT_MS) {
     if (isBallCollectedAtCenter()) {
       stopDrive();
-      setStatusLeds(0, 1, 0);
       writeDebugStreamLine("COLLECTING success during extra collector spin.");
       return COLLECT_RESULT_SUCCESS;
     }
     wait1Msec(20);
   }
 
-  setStatusLeds(0, 0, 1);
-  writeDebugStreamLine("COLLECTING timeout after extra collector spin.");
+  writeDebugStreamLine("COLLECTING timeout after extra 5s collector spin.");
   return COLLECT_RESULT_TIMEOUT;
 }
 
-void runPhaseTransitionIndicator() {
+// -------------------------
+// Depositing phase
+// -------------------------
+int isFacingEast() {
+  return (SensorValue[west] == 1 &&
+          SensorValue[south] == 1 &&
+          SensorValue[east] == 0 &&
+          SensorValue[noth] == 1);
+}
+
+void alignToEastCCW(int timeoutMs) {
+  int startTime = nSysTime;
+
+  while ((nSysTime - startTime) < timeoutMs && !isFacingEast()) {
+    turnLeftInPlace(DRIVE_TURN_POWER);
+    wait1Msec(20);
+  }
+
   stopDrive();
-  setStatusLeds(1, 1, 1);
-  writeDebugStreamLine("Transition: all LEDs ON for %d ms.", PHASE_TRANSITION_LED_MS);
-  wait1Msec(PHASE_TRANSITION_LED_MS);
-  setStatusLeds(0, 0, 0);
+}
+
+void reverseStraightForMs(int durationMs) {
+  int startTime = nSysTime;
+
+  while ((nSysTime - startTime) < durationMs) {
+    setDrive(-DRIVE_REVERSE_LEFT_POWER, -DRIVE_REVERSE_RIGHT_POWER);
+    wait1Msec(20);
+  }
+
+  stopDrive();
+}
+
+int clampInt(int value, int minValue, int maxValue) {
+  if (value < minValue) {
+    return minValue;
+  }
+  if (value > maxValue) {
+    return maxValue;
+  }
+  return value;
+}
+
+int gatePdPowerForTarget(int targetCount, int currentCount, int *prevAbsError) {
+  int error = targetCount - currentCount;
+  int absError = abs(error);
+  int derivative = absError - *prevAbsError;
+  float power = GATE_MIN_POWER + (GATE_PD_KP * absError) + (GATE_PD_KD * derivative);
+  int mappedPower = clampInt((int)power, GATE_MIN_POWER, GATE_MAX_POWER);
+
+  *prevAbsError = absError;
+  return mappedPower;
+}
+
+void openGateByEncoder() {
+  int openPrevAbsError = GATE_ENCODER_TARGET;
+  int closePrevAbsError = GATE_ENCODER_POST_TARGET;
+  int gatePower = 0;
+
+  writeDebugStreamLine("Gate opening -> encoder target: %d counts.", GATE_ENCODER_TARGET);
+
+  while (SensorValue[gateEncoder] < GATE_ENCODER_TARGET) {
+    gatePower = gatePdPowerForTarget(GATE_ENCODER_TARGET, SensorValue[gateEncoder], &openPrevAbsError);
+    motor[gateMotor] = -gatePower;
+    wait1Msec(20);
+  }
+
+  motor[gateMotor] = 0;
+  writeDebugStreamLine("Gate open hold for %d ms to allow ball drop.", GATE_OPEN_HOLD_MS);
+  wait1Msec(GATE_OPEN_HOLD_MS);
+
+  while (SensorValue[gateEncoder] > GATE_ENCODER_POST_TARGET) {
+    gatePower = gatePdPowerForTarget(GATE_ENCODER_POST_TARGET, SensorValue[gateEncoder], &closePrevAbsError);
+    motor[gateMotor] = gatePower;
+    wait1Msec(20);
+  }
+
+  motor[gateMotor] = 0;
+  wait1Msec(500);
+
+  motor[gateMotor] = 0;
+  writeDebugStreamLine("Gate closed. Final encoder count: %d.", SensorValue[leftEncoder]);
+}
+
+int reverseStraightAndCheckBack(int durationMs) {
+  int startTime = nSysTime;
+
+  while ((nSysTime - startTime) < durationMs) {
+    if (SensorValue[backLight] >= BACK_SENSOR_DONE_MIN) {
+      stopDrive();
+      writeDebugStreamLine(
+        "backLight=%d >= %d -> stopping reverse and opening gate.",
+        SensorValue[backLight],
+        BACK_SENSOR_DONE_MIN
+      );
+      openGateByEncoder();
+      return 1;
+    }
+
+    setDrive(-DRIVE_REVERSE_LEFT_POWER, -DRIVE_REVERSE_RIGHT_POWER);
+    wait1Msec(20);
+  }
+
+  stopDrive();
+  return 0;
+}
+
+int isDepositCompleteNow() {
+  int backValue = SensorValue[backLight];
+  int facingEast = isFacingEast();
+  return (backValue > BACK_SENSOR_DONE_MIN && facingEast);
+}
+
+int runDepositingPhase() {
+  int phaseStart = nSysTime;
+  int backValue = 0;
+  int facingEast = 0;
+  int depositCycle = 1;
+
+  if (depositSequenceHasRun) {
+    stopDrive();
+    writeDebugStreamLine("DEPOSIT sequence already executed once. Skipping re-run.");
+    return DEPOSIT_RESULT_TIMEOUT;
+  }
+
+  depositSequenceHasRun = 1;
+  writeDebugStreamLine("DEPOSITING started.");
+  alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
+
+  if (reverseStraightAndCheckBack(DEPOSIT_INITIAL_REVERSE_MS)) {
+    writeDebugStreamLine("DEPOSIT complete: backLight triggered gate during initial reverse.");
+    return DEPOSIT_RESULT_STABLE;
+  }
+
+  while ((nSysTime - phaseStart) < DEPOSIT_TIMEOUT_MS) {
+    backValue = SensorValue[backLight];
+    facingEast = isFacingEast();
+    writeDebugStreamLine(
+      "DEPOSIT cycle %d check: back=%d facingEast=%d",
+      depositCycle,
+      backValue,
+      facingEast
+    );
+
+    if (isDepositCompleteNow()) {
+      writeDebugStreamLine("DEPOSIT complete: back>2500 and EAST aligned.");
+      openGateByEncoder();
+      return DEPOSIT_RESULT_STABLE;
+    }
+
+    if (!facingEast) {
+      writeDebugStreamLine("DEPOSIT cycle %d: heading drifted, re-aligning to EAST.", depositCycle);
+      alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
+    }
+
+    if (reverseStraightAndCheckBack(DEPOSIT_STEP_REVERSE_MS)) {
+      writeDebugStreamLine("DEPOSIT complete: backLight triggered gate during step reverse.");
+      return DEPOSIT_RESULT_STABLE;
+    }
+    depositCycle++;
+  }
+
+  stopDrive();
+  writeDebugStreamLine("DEPOSIT timeout (10s).");
+  return DEPOSIT_RESULT_TIMEOUT;
+}
+
+// -------------------------
+// Transitions and main flow
+// -------------------------
+void runPhaseTransitionDelay() {
+  stopDrive();
+  writeDebugStreamLine("Transition delay for %d ms.", PHASE_TRANSITION_DELAY_MS);
+  wait1Msec(PHASE_TRANSITION_DELAY_MS);
 }
 
 task main() {
   int searchResult;
   int collectResult;
+  int depositResult;
 
   clearDebugStream();
-  writeDebugStreamLine("Competition flow started: SEARCH -> COLLECT.");
+  writeDebugStreamLine("Competition flow started: SEARCH -> COLLECT -> DEPOSIT.");
 
-  setStatusLeds(0, 0, 0);
   stopDrive();
   motor[collectorMotor] = SEARCH_COLLECTOR_POWER;
 
   searchResult = runSearchingPhase();
 
   if (searchResult == SEARCH_RESULT_BALL_FOUND) {
-    runPhaseTransitionIndicator();
-    motor[collectorMotor] = COLLECTOR_POWER;
-    collectResult = runCollectingPhase();
-    writeDebugStreamLine("COLLECTING result = %d (1=success, 0=timeout)", collectResult);
+    if (searchCenterDetected || isBallCollectedAtCenter()) {
+      writeDebugStreamLine("Center sensor already has ball after SEARCH. Jumping straight to DEPOSIT.");
+      motor[collectorMotor] = 0;
+      depositResult = runDepositingPhase();
+      writeDebugStreamLine("DEPOSITING result = %d (1=stable, 0=timeout)", depositResult);
+    } else {
+      runPhaseTransitionDelay();
+
+      motor[collectorMotor] = COLLECTOR_POWER;
+      collectResult = runCollectingPhase();
+      writeDebugStreamLine("COLLECTING result = %d (1=success, 0=timeout)", collectResult);
+
+      if (collectResult == COLLECT_RESULT_SUCCESS) {
+        runPhaseTransitionDelay();
+        motor[collectorMotor] = 0;
+        depositResult = runDepositingPhase();
+        writeDebugStreamLine("DEPOSITING result = %d (1=stable, 0=timeout)", depositResult);
+      } else {
+        writeDebugStreamLine("Collecting did not succeed; depositing phase skipped.");
+      }
+    }
   } else {
-    writeDebugStreamLine("No ball found in searching phase; collecting phase skipped.");
-    setStatusLeds(0, 0, 1);
+    writeDebugStreamLine("No ball found in searching phase; collecting/depositing skipped.");
   }
 
   stopDrive();
   motor[collectorMotor] = 0;
-  setStatusLeds(0, 0, 0);
+  motor[gateMotor] = 0;
   writeDebugStreamLine("Competition pipeline complete (one-shot run finished).");
 }

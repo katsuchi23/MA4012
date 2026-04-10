@@ -34,8 +34,11 @@ const int DRIVE_TURN_POWER            = 60;
 // Gate motor encoder constants (from encoder.c).
 // 360 counts = one full axle rotation; 90 counts = quarter turn.
 const int GATE_ENCODER_TARGET = 90;
-const int GATE_MOTOR_POWER    = -50;
 const int GATE_ENCODER_POST_TARGET = 0;
+const int GATE_MIN_POWER = 35;
+const int GATE_MAX_POWER = 80;
+const float GATE_PD_KP = 0.56;   // 50 / 90: maps error 90 -> +50 above minimum.
+const float GATE_PD_KD = 0.35;   // Damping against sudden encoder jumps.
 
 const int DEPOSIT_RESULT_TIMEOUT = 0;
 const int DEPOSIT_RESULT_STABLE = 1;
@@ -90,26 +93,52 @@ void reverseStraightForMs(int durationMs) {
   stopDrive();
 }
 
+int clampInt(int value, int minValue, int maxValue) {
+  if (value < minValue) {
+    return minValue;
+  }
+  if (value > maxValue) {
+    return maxValue;
+  }
+  return value;
+}
+
+int gatePdPowerForTarget(int targetCount, int currentCount, int *prevAbsError) {
+  int error = targetCount - currentCount;
+  int absError = abs(error);
+  int derivative = absError - *prevAbsError;
+  float power = GATE_MIN_POWER + (GATE_PD_KP * absError) + (GATE_PD_KD * derivative);
+  int mappedPower = clampInt((int)power, GATE_MIN_POWER, GATE_MAX_POWER);
+
+  *prevAbsError = absError;
+  return mappedPower;
+}
+
 // Rotates gateMotor using encoder feedback (encoder.c pattern):
-// clears leftEncoder, runs gateMotor at GATE_MOTOR_POWER until
-// encoder reaches GATE_ENCODER_TARGET (90 counts = quarter turn).
+// clears leftEncoder, then uses PD control with encoder feedback:
+// motor power scales from ~90 down to ~40 as error scales from 90 to 0.
 void openGateByEncoder() {
-  int closeStart;
+  int openPrevAbsError = GATE_ENCODER_TARGET;
+  int closePrevAbsError = GATE_ENCODER_POST_TARGET;
+  int gatePower = 0;
 
   writeDebugStreamLine("Gate opening ? encoder target: %d counts.", GATE_ENCODER_TARGET);
-  SensorValue[leftEncoder] = 0;
 
   // Open gate until encoder reaches target.
-  while(SensorValue[gateEncoder] < GATE_ENCODER_TARGET) // While the left encoder is less than distance:
-  {
-    motor[gateMotor]  = -40;         /* forward at half speed. */
+  while (SensorValue[gateEncoder] < GATE_ENCODER_TARGET) {
+    gatePower = gatePdPowerForTarget(GATE_ENCODER_TARGET, SensorValue[gateEncoder], &openPrevAbsError);
+    motor[gateMotor] = -gatePower;
+    wait1Msec(20);
   }
 
-  motor[gateMotor]  = 0;            /* distance has been reached.   */
+  motor[gateMotor] = 0;
   wait1Msec(500);
-  while(SensorValue[gateEncoder] > 0) // While the left encoder is less than distance:
-  {
-    motor[gateMotor]  = 40;         /* forward at half speed. */
+
+  // Close gate back to encoder zero with the same PD shaping.
+  while (SensorValue[gateEncoder] > GATE_ENCODER_POST_TARGET) {
+    gatePower = gatePdPowerForTarget(GATE_ENCODER_POST_TARGET, SensorValue[gateEncoder], &closePrevAbsError);
+    motor[gateMotor] = gatePower;
+    wait1Msec(20);
   }
 
   motor[gateMotor] = 0;
@@ -215,7 +244,6 @@ int runDepositingPhase() {
 
 task main() {
   int depositResult;
-	SensorValue[gateEncoder]  = 0;
 
   clearDebugStream();
   writeDebugStreamLine("Standalone DEPOSITING phase started (one-shot).");
