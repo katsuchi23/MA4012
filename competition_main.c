@@ -41,7 +41,7 @@ const int SEARCH_FORWARD_MS = 1000;
 const int SEARCH_PRE_ALIGN_SCAN_MS = 2000;
 const int SEARCH_ALIGN_TURN_POWER = 45;
 const int SEARCH_ALIGN_REVERSE_MS = 50;
-const int SEARCH_MAX_CYCLES = 4;
+const int SEARCH_MAX_CYCLES = 3;
 const int SEARCH_ALIGN_TIMEOUT_MS = 5000;
 const int DRIVE_FORWARD_POWER = 85;
 const int SEARCH_COLLECTOR_POWER = 127;
@@ -53,7 +53,7 @@ const int SEARCH_RESULT_BALL_FOUND = 1;
 // Collecting phase constants
 // -------------------------
 const int CENTER_BALL_COLLECT_MIN = 1300;
-const int COLLECT_TIMEOUT_MS = 3000;
+const int COLLECT_TIMEOUT_MS = 1000;
 const int COLLECT_EXTRA_SPIN_TIMEOUT_MS = 5000;
 const int DRIVE_COLLECT_POWER = 90;
 const int COLLECTOR_POWER = 200;
@@ -64,7 +64,7 @@ const int COLLECT_RESULT_SUCCESS = 1;
 // -------------------------
 // Transition constants
 // -------------------------
-const int PHASE_TRANSITION_LED_MS = 2000;
+const int PHASE_TRANSITION_LED_MS = 1000;
 
 // -------------------------
 // Shared state
@@ -83,7 +83,7 @@ void stopDrive() {
   setDrive(0, 0);
 }
 
-void turnLeftInPlace(int power) {   
+void turnLeftInPlace(int power) {
   setDrive(-power, power);
 }
 
@@ -261,16 +261,19 @@ int runSearchingPhase() {
     writeDebugStreamLine("SEARCH cycle %d/%d", cycle + 1, SEARCH_MAX_CYCLES);
 
     if (runForwardAndCheckBall(SEARCH_FORWARD_MS)) {
+      setStatusLeds(1, 1, 1);
       writeDebugStreamLine("Ball detected during forward search.");
       return SEARCH_RESULT_BALL_FOUND;
     }
 
     if (rotateCCWForScanAndCheckBall(SEARCH_PRE_ALIGN_SCAN_MS)) {
+      setStatusLeds(1, 1, 1);
       writeDebugStreamLine("Ball detected during pre-alignment scan.");
       return SEARCH_RESULT_BALL_FOUND;
     }
 
     if (rotateCCWToWestAndCheckBall(SEARCH_ALIGN_TIMEOUT_MS)) {
+      setStatusLeds(1, 1, 1);
       writeDebugStreamLine("Ball detected while aligning to WEST.");
       return SEARCH_RESULT_BALL_FOUND;
     }
