@@ -33,8 +33,8 @@
 
 const int RANDOM_SPIN_MIN_MS = 300;
 const int RANDOM_SPIN_MAX_MS = 2200;
-const int RANDOM_TURN_POWER = 50;
-const int ALIGN_TURN_POWER = 50;
+const int RANDOM_TURN_POWER = 80;
+const int ALIGN_TURN_POWER = 40;
 const int ALIGN_TIMEOUT_MS = 5000;
 const int INTER_TRIAL_PAUSE_MS = 700;
 
