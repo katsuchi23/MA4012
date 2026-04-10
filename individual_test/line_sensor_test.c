@@ -63,5 +63,3 @@ task main() {
     wait1Msec(120);
   }
 }
-
-

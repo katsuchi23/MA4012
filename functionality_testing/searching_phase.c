@@ -207,7 +207,7 @@ int rotateCCWToWestAndCheckBall(int timeoutMs) {
     if (isFacingWest()) {
       // Counter rotation offsets motor stop lag so heading does not overshoot WEST.
       setDrive(-SEARCH_ALIGN_TURN_POWER, SEARCH_ALIGN_TURN_POWER);
-      wait1Msec(SEARCH_ALIGN_REVERSE_MS);
+        wait1Msec(SEARCH_ALIGN_REVERSE_MS);
       stopDrive();
       return 0;
     }

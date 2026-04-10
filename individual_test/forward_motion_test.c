@@ -24,8 +24,8 @@
   Simple straight forward drive test for wheel motors.
 */
 
-const int FORWARD_POWER = 90;
-const int STOP_MS = 1000;
+const int FORWARD_POWER = 60;
+const int STOP_MS = 3000;
 
 void setDrive(int leftPower, int rightPower) {
   motor[leftWheel] = leftPower;
@@ -43,10 +43,12 @@ task main() {
   clearDebugStream();
   writeDebugStreamLine("Forward motion test started.");
 
-  while (true) {
-    setDrive(FORWARD_POWER, FORWARD_POWER);
-    wait1Msec(STOP_MS);
-    stopAll();
-    wait1Msec(STOP_MS);
-  }
+  setDrive(-FORWARD_POWER, -FORWARD_POWER);
+  wait1Msec(STOP_MS);
+  stopAll();
+  //while (true) {
+    //setDrive(-FORWARD_POWER, -FORWARD_POWER);
+    //wait1Msec(STOP_MS);
+    //stopAll();
+  //}
 }
