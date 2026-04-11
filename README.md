@@ -10,7 +10,7 @@ All scripts assume this hardware mapping:
 
 - Line sensors (digital): `dgtl12` front-left, `dgtl11` front-right, `dgtl10` back-left, `dgtl9` back-right.
 - Light sensors (analog): `in4` front-below, `in3` front-upper, `in2` center, `in1` back.
-- Compass (digital): `dgtl3` west, `dgtl4` south, `dgtl5` east, `dgtl6` noth.
+- Compass (digital): `dgtl3` west, `dgtl4` south, `dgtl5` east, `dgtl6` north.
 - Unused digital reserved: `dgtl1`, `dgtl2`, `dgtl7`, `dgtl8` as `sensorNone`.
 - Motors: `port6` gate, `port7` collector, `port8` left wheel, `port9` right wheel (reversed).
 

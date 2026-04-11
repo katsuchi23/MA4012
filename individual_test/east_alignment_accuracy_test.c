@@ -7,12 +7,11 @@
 #pragma config(Sensor, dgtl3,  west,           sensorDigitalIn)
 #pragma config(Sensor, dgtl4,  south,          sensorDigitalIn)
 #pragma config(Sensor, dgtl5,  east,           sensorDigitalIn)
-#pragma config(Sensor, dgtl6,  noth,           sensorDigitalIn)
-#pragma config(Sensor, dgtl7,  unusedD7,       sensorNone)
-#pragma config(Sensor, dgtl8,  unusedD8,       sensorNone)
-#pragma config(Sensor, dgtl9,  yellow,         sensorDigitalOut)
-#pragma config(Sensor, dgtl10, green,          sensorDigitalOut)
-#pragma config(Sensor, dgtl11, red,            sensorDigitalOut)
+#pragma config(Sensor, dgtl6,  north,           sensorDigitalIn)
+#pragma config(Sensor, dgtl9,  backRightLine,         sensorDigitalIn)
+#pragma config(Sensor, dgtl10, backLeftLine,          sensorDigitalIn)
+#pragma config(Sensor, dgtl11, frontRightLine,            sensorDigitalIn)
+#pragma config(Sensor, dgtl12, frontLeftLine,            sensorDigitalIn)
 #pragma config(Motor,  port6,           gateMotor,     tmotorServoStandard, openLoop)
 #pragma config(Motor,  port7,           collectorMotor, tmotorVex393_MC29, openLoop)
 #pragma config(Motor,  port8,           rightWheel,    tmotorVex393_MC29, openLoop)
@@ -57,20 +56,14 @@ void stopAll() {
 
 void rotateCW(int power) {
   setDrive(power, -power);
-}
+} 
 
 void rotateCCW(int power) {
   setDrive(-power, power);
 }
 
-void setStatusLeds(int y, int g, int r) {
-  SensorValue[yellow] = y;
-  SensorValue[green] = g;
-  SensorValue[red] = r;
-}
-
 int readCompassDirectionIndex() {
-  if (SensorValue[noth] == 0) return 0;  // N
+  if (SensorValue[north] == 0) return 0;  // N
   if (SensorValue[east] == 0) return 1;  // E
   if (SensorValue[south] == 0) return 2; // S
   if (SensorValue[west] == 0) return 3;  // W
@@ -79,7 +72,7 @@ int readCompassDirectionIndex() {
 
 int isStrictEast() {
   return (SensorValue[east] == 0 &&
-          SensorValue[noth] == 1 &&
+          SensorValue[north] == 1 &&
           SensorValue[south] == 1 &&
           SensorValue[west] == 1);
 }
@@ -96,7 +89,7 @@ int headingErrorStepsFromEast(int headingIndex) {
 
 void seedRng() {
   rngState = nSysTime + SensorValue[west] * 13 + SensorValue[south] * 17 +
-             SensorValue[east] * 19 + SensorValue[noth] * 23 + 97;
+             SensorValue[east] * 19 + SensorValue[north] * 23 + 97;
   if (rngState <= 0) {
     rngState = 97;
   }
@@ -166,7 +159,6 @@ task main() {
 
   clearDebugStream();
   stopAll();
-  setStatusLeds(0, 0, 0);
   seedRng();
 
   writeDebugStreamLine("East alignment accuracy test started.");
@@ -188,7 +180,6 @@ task main() {
     int alignStartMs;
 
     trials++;
-    setStatusLeds(1, 0, 0);
 
     writeDebugStreamLine(
       "Trial %d: random spin %s for %d ms",
@@ -213,9 +204,6 @@ task main() {
     }
     if (strictEast) {
       strictEastCount++;
-      setStatusLeds(0, 1, 0);
-    } else {
-      setStatusLeds(0, 0, 1);
     }
     if (headingAfter < 0) {
       unknownAfterCount++;
@@ -229,7 +217,7 @@ task main() {
     writeDebugStreamLine(
       "Result %d: aligned=%d strictEast=%d beforeIdx=%d afterIdx=%d errorSteps=%d alignMs=%d rawW/S/E/N=%d/%d/%d/%d",
       trials, aligned, strictEast, headingBefore, headingAfter, errorSteps, alignMs,
-      SensorValue[west], SensorValue[south], SensorValue[east], SensorValue[noth]
+      SensorValue[west], SensorValue[south], SensorValue[east], SensorValue[north]
     );
     writeDebugStreamLine(
       "Stats: strict=%d/%d (%d%%) alignSuccess=%d/%d (%d%%) timeout=%d unknownAfter=%d avgErrorX100=%d",
@@ -246,6 +234,5 @@ task main() {
   }
 
   stopAll();
-  setStatusLeds(0, 1, 0);
   writeDebugStreamLine("East alignment accuracy test completed.");
 }

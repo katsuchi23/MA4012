@@ -7,12 +7,11 @@
 #pragma config(Sensor, dgtl3,  west,           sensorDigitalIn)
 #pragma config(Sensor, dgtl4,  south,          sensorDigitalIn)
 #pragma config(Sensor, dgtl5,  east,           sensorDigitalIn)
-#pragma config(Sensor, dgtl6,  noth,           sensorDigitalIn)
-#pragma config(Sensor, dgtl7,  unusedD7,       sensorNone)
-#pragma config(Sensor, dgtl8,  unusedD8,       sensorNone)
-#pragma config(Sensor, dgtl9,  yellow,         sensorDigitalOut)
-#pragma config(Sensor, dgtl10, green,          sensorDigitalOut)
-#pragma config(Sensor, dgtl11, red,            sensorDigitalOut)
+#pragma config(Sensor, dgtl6,  north,           sensorDigitalIn)
+#pragma config(Sensor, dgtl9,  backRightLine,         sensorDigitalIn)
+#pragma config(Sensor, dgtl10, backLeftLine,          sensorDigitalIn)
+#pragma config(Sensor, dgtl11, frontRightLine,            sensorDigitalIn)
+#pragma config(Sensor, dgtl12, frontLeftLine,            sensorDigitalIn)
 #pragma config(Motor,  port6,           gateMotor,     tmotorServoStandard, openLoop)
 #pragma config(Motor,  port7,           collectorMotor, tmotorVex393_MC29, openLoop)
 #pragma config(Motor,  port8,           rightWheel,    tmotorVex393_MC29, openLoop)
@@ -56,7 +55,7 @@ int isFacingWest() {
   return (SensorValue[west] == 0 &&
           SensorValue[south] == 1 &&
           SensorValue[east] == 1 &&
-          SensorValue[noth] == 1);
+          SensorValue[north] == 1);
 }
 
 int alignToWest(int timeoutMs) {
@@ -89,7 +88,7 @@ task main() {
   while (true) {
     writeDebugStreamLine(
       "Compass raw W/S/E/N = %d/%d/%d/%d",
-      SensorValue[west], SensorValue[south], SensorValue[east], SensorValue[noth]
+      SensorValue[west], SensorValue[south], SensorValue[east], SensorValue[north]
     );
 
     if (isFacingWest()) {

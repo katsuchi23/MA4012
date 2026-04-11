@@ -52,7 +52,7 @@ int isFacingWest() {
   return (SensorValue[west] == 1 &&
           SensorValue[south] == 1 &&
           SensorValue[east] == 0 &&
-          SensorValue[noth] == 1);
+          SensorValue[north] == 1);
 }
 
 void resetSearchLowerTracking() {
