@@ -32,6 +32,7 @@ const int UPPER_SAFETY_BLOCK_MIN = 1800;
 const int SEARCH_SAFETY_REVERSE_MS = 700;
 const int SEARCH_SAFETY_REVERSE_POWER = 100;
 const int DRIVE_FORWARD_POWER = 85;
+const int SEARCH_RIGHT_WHEEL_OFFSET = 10;
 const int COLLECTOR_POWER = 127;
 
 const int SEARCH_RESULT_NO_BALL = 0;
@@ -57,6 +58,14 @@ void turnLeftInPlace(int power) {
 
 void reverseStraight(int power) {
   setDrive(-power, -power);
+}
+
+void setSearchForwardDrive() {
+  setDrive(DRIVE_FORWARD_POWER, DRIVE_FORWARD_POWER - SEARCH_RIGHT_WHEEL_OFFSET);
+}
+
+void setSearchSafetyReverseDrive() {
+  setDrive(-SEARCH_SAFETY_REVERSE_POWER, -(SEARCH_SAFETY_REVERSE_POWER - SEARCH_RIGHT_WHEEL_OFFSET));
 }
 
 int isBallCandidate() {
@@ -115,7 +124,7 @@ int handleUpperSafetyReverse() {
     SensorValue[frontUpperLight],
     UPPER_SAFETY_BLOCK_MIN
   );
-  reverseStraight(SEARCH_SAFETY_REVERSE_POWER);
+  setSearchSafetyReverseDrive();
   wait1Msec(SEARCH_SAFETY_REVERSE_MS);
   stopDrive();
   return 1;
@@ -143,7 +152,7 @@ int runForwardAndCheckBall(int durationMs) {
       ballConfirmCount = 0;
     }
 
-    setDrive(DRIVE_FORWARD_POWER, DRIVE_FORWARD_POWER);
+    setSearchForwardDrive();
     wait1Msec(20);
   }
 

@@ -33,6 +33,9 @@ task main() {
 
     wait1Msec(100);
 
-   	motor[collectorMotor] = 127;
+   	motor[rightWheel] = -80;
+   	motor[leftWheel] = -60;
+
+
   }
 }
