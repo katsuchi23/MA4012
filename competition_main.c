@@ -66,6 +66,7 @@ const int COLLECT_RESULT_FALSE_DETECT = 2;
 // Depositing phase constants
 // -------------------------
 const int BACK_SENSOR_DONE_MIN        = 2000;
+const int BACK_BOUNDARY_IGNORE_MIN    = 1800;
 const int DEPOSIT_ALIGN_TIMEOUT_MS    = 5000;
 const int DEPOSIT_INITIAL_REVERSE_MS  = 3000;
 const int DEPOSIT_STEP_REVERSE_MS     = 1000;
@@ -241,6 +242,27 @@ int checkAndHandleBoundaryRecovery() {
 
   trigger = detectBoundaryTrigger();
   if (trigger == BOUNDARY_TRIGGER_NONE) {
+    return 0;
+  }
+
+  recoverFromBoundary(trigger);
+  return 1;
+}
+
+int checkAndHandleBoundaryRecoveryForDepositReverse() {
+  int trigger = BOUNDARY_TRIGGER_NONE;
+
+  if (boundaryRecoveryActive) {
+    return 0;
+  }
+
+  trigger = detectBoundaryTrigger();
+  if (trigger == BOUNDARY_TRIGGER_NONE) {
+    return 0;
+  }
+
+  if (trigger == BOUNDARY_TRIGGER_BACK &&
+      SensorValue[backLight] > BACK_BOUNDARY_IGNORE_MIN) {
     return 0;
   }
 
@@ -638,8 +660,20 @@ int reverseStraightAndCheckBack(int durationMs, int depositGateMode) {
   while ((nSysTime - startTime) < durationMs) {
     enforceGateDisabledLock(depositGateMode);
 
-    if (SensorValue[backLight] >= BACK_SENSOR_DONE_MIN) {
+    if (SensorValue[backLight] > BACK_SENSOR_DONE_MIN) {
       stopDrive();
+
+      if (!isFacingEast()) {
+        alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
+      }
+
+      if (!(SensorValue[backLight] > BACK_SENSOR_DONE_MIN && isFacingEast())) {
+        setDepositReverseDrive();
+        checkAndHandleBoundaryRecoveryForDepositReverse();
+        wait1Msec(20);
+        continue;
+      }
+
       if (gateEnabled) {
         openGateByEncoder();
       } else {
@@ -648,7 +682,8 @@ int reverseStraightAndCheckBack(int durationMs, int depositGateMode) {
     }
 
     setDepositReverseDrive();
-    waitWithBoundaryCheck(20);
+    checkAndHandleBoundaryRecoveryForDepositReverse();
+    wait1Msec(20);
   }
 
   stopDrive();
