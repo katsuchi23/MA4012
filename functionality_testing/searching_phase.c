@@ -86,7 +86,7 @@ int isFrontLowerTriggered() {
   return SensorValue[frontBelowLight] > FRONT_LOWER_BALL_MIN;
 }
 
-int isFacingWest() {
+int isFacingEastSearch() {
   return (SensorValue[west] == 1 &&
           SensorValue[south] == 1 &&
           SensorValue[east] == 0 &&
@@ -190,7 +190,7 @@ int rotateCCWForScanAndCheckBall(int durationMs) {
   return 0;
 }
 
-int rotateCCWToWestAndCheckBall(int timeoutMs) {
+int rotateCCWToEastAndCheckBall(int timeoutMs) {
   int startTime = nSysTime;
   int ballConfirmCount = 0;
 
@@ -212,8 +212,8 @@ int rotateCCWToWestAndCheckBall(int timeoutMs) {
       ballConfirmCount = 0;
     }
 
-    if (isFacingWest()) {
-      // Counter rotation offsets motor stop lag so heading does not overshoot WEST.
+    if (isFacingEastSearch()) {
+      // Counter rotation offsets motor stop lag so heading does not overshoot EAST.
       setDrive(-SEARCH_ALIGN_TURN_POWER, SEARCH_ALIGN_TURN_POWER);
         wait1Msec(SEARCH_ALIGN_REVERSE_MS);
       stopDrive();
@@ -249,8 +249,8 @@ int runSearchingPhase() {
       return SEARCH_RESULT_BALL_FOUND;
     }
 
-    if (rotateCCWToWestAndCheckBall(SEARCH_ALIGN_TIMEOUT_MS)) {
-      writeDebugStreamLine("Ball detected while aligning to WEST.");
+    if (rotateCCWToEastAndCheckBall(SEARCH_ALIGN_TIMEOUT_MS)) {
+      writeDebugStreamLine("Ball detected while aligning to EAST.");
       return SEARCH_RESULT_BALL_FOUND;
     }
 
