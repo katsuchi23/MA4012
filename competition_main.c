@@ -46,7 +46,7 @@ const int SEARCH_RESULT_CENTER_CAPTURED = 2;
 // -------------------------
 // Collecting phase constants
 // -------------------------
-const int CENTER_BALL_COLLECT_MIN = 600;
+const int CENTER_BALL_COLLECT_MIN = 500;
 const int COLLECT_TIMEOUT_MS = 2000;
 const int COLLECT_EXTRA_SPIN_TIMEOUT_MS = 1500;
 const int DRIVE_COLLECT_POWER = 90;
@@ -65,9 +65,9 @@ const int COLLECT_RESULT_FALSE_DETECT = 2;
 // -------------------------
 // Depositing phase constants
 // -------------------------
-const int BACK_SENSOR_DONE_MIN        = 2000;
-const int BACK_BOUNDARY_IGNORE_MIN    = 1800;
-const int DEPOSIT_ALIGN_TIMEOUT_MS    = 5000;
+const int BACK_SENSOR_DONE_MIN        = 4000;
+const int BACK_BOUNDARY_IGNORE_MIN    = 800;
+const int DEPOSIT_ALIGN_TIMEOUT_MS    = 2000;
 const int DEPOSIT_INITIAL_REVERSE_MS  = 3000;
 const int DEPOSIT_STEP_REVERSE_MS     = 1000;
 const int DEPOSIT_TIMEOUT_MS          = 10000;
@@ -84,8 +84,6 @@ const float GATE_PD_KD = 0.35;
 
 const int DEPOSIT_RESULT_TIMEOUT = 0;
 const int DEPOSIT_RESULT_STABLE = 1;
-const int DEPOSIT_GATE_MODE_DISABLED = 0;
-const int DEPOSIT_GATE_MODE_ENABLED = 1;
 const int CYCLE_FAILURE_NONE = 0;
 const int CYCLE_FAILURE_SEARCH_OR_COLLECT = 1;
 const int CYCLE_FAILURE_DEPOSIT = 2;
@@ -637,19 +635,8 @@ void openGateByEncoder() {
   motor[gateMotor] = 0;
 }
 
-int isDepositGateEnabled(int depositGateMode) {
-  return (depositGateMode == DEPOSIT_GATE_MODE_ENABLED);
-}
-
-void enforceGateDisabledLock(int depositGateMode) {
-  if (!isDepositGateEnabled(depositGateMode)) {
-    motor[gateMotor] = 0;
-  }
-}
-
-int reverseStraightAndCheckBack(int durationMs, int depositGateMode) {
+int reverseStraightAndCheckBack(int durationMs) {
   int startTime = nSysTime;
-  int gateEnabled = isDepositGateEnabled(depositGateMode);
 
   // Deposit must always align EAST first before reversing.
   while (!isFacingEast()) {
@@ -658,8 +645,6 @@ int reverseStraightAndCheckBack(int durationMs, int depositGateMode) {
   }
 
   while ((nSysTime - startTime) < durationMs) {
-    enforceGateDisabledLock(depositGateMode);
-
     if (SensorValue[backLight] > BACK_SENSOR_DONE_MIN) {
       stopDrive();
 
@@ -674,10 +659,7 @@ int reverseStraightAndCheckBack(int durationMs, int depositGateMode) {
         continue;
       }
 
-      if (gateEnabled) {
-        openGateByEncoder();
-      } else {
-      }
+      openGateByEncoder();
       return 1;
     }
 
@@ -696,12 +678,11 @@ int isDepositCompleteNow() {
   return (backValue > BACK_SENSOR_DONE_MIN && facingEast);
 }
 
-int runDepositingPhase(int depositGateMode) {
+int runDepositingPhase() {
   int phaseStart = nSysTime;
   int backValue = 0;
   int facingEast = 0;
   int depositCycle = 1;
-  int gateEnabled = isDepositGateEnabled(depositGateMode);
 
   if (depositSequenceHasRun) {
     stopDrive();
@@ -709,16 +690,9 @@ int runDepositingPhase(int depositGateMode) {
   }
 
   depositSequenceHasRun = 1;
-  if (gateEnabled) {
-  } else {
-    motor[gateMotor] = 0; // Hard lock: recovery path never drives gate/encoder flow.
-  }
   alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
 
-  if (reverseStraightAndCheckBack(DEPOSIT_INITIAL_REVERSE_MS, depositGateMode)) {
-    if (gateEnabled) {
-    } else {
-    }
+  if (reverseStraightAndCheckBack(DEPOSIT_INITIAL_REVERSE_MS)) {
     return DEPOSIT_RESULT_STABLE;
   }
 
@@ -727,10 +701,7 @@ int runDepositingPhase(int depositGateMode) {
     facingEast = isFacingEast();
 
     if (isDepositCompleteNow()) {
-      if (gateEnabled) {
-        openGateByEncoder();
-      } else {
-      }
+      openGateByEncoder();
       return DEPOSIT_RESULT_STABLE;
     }
 
@@ -738,10 +709,7 @@ int runDepositingPhase(int depositGateMode) {
       alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
     }
 
-    if (reverseStraightAndCheckBack(DEPOSIT_STEP_REVERSE_MS, depositGateMode)) {
-      if (gateEnabled) {
-      } else {
-      }
+    if (reverseStraightAndCheckBack(DEPOSIT_STEP_REVERSE_MS)) {
       return DEPOSIT_RESULT_STABLE;
     }
     depositCycle++;
@@ -776,7 +744,7 @@ void recoverAfterPhaseFailure() {
   motor[collectorMotor] = 0;
   stopDrive();
   depositSequenceHasRun = 0; // allow recovery deposit to run even if this cycle touched deposit state
-  depositResult = runDepositingPhase(DEPOSIT_GATE_MODE_DISABLED);
+  depositResult = runDepositingPhase();
   stopDrive();
   waitWithBoundaryCheck(120);
 }
@@ -810,7 +778,7 @@ int runCompetitionCycle() {
   if (isBallCollectedAtCenter()) {
     stopDrive();
     motor[collectorMotor] = 0;
-    depositResult = runDepositingPhase(DEPOSIT_GATE_MODE_ENABLED);
+    depositResult = runDepositingPhase();
     if (depositResult == DEPOSIT_RESULT_STABLE) {
       return 1;
     }
@@ -824,7 +792,7 @@ int runCompetitionCycle() {
     if (searchResult == SEARCH_RESULT_CENTER_CAPTURED || searchCenterDetected || isBallCollectedAtCenter()) {
       stopDrive();
       motor[collectorMotor] = 0;
-      depositResult = runDepositingPhase(DEPOSIT_GATE_MODE_ENABLED);
+      depositResult = runDepositingPhase();
       if (depositResult == DEPOSIT_RESULT_STABLE) {
         return 1;
       }
@@ -842,7 +810,7 @@ int runCompetitionCycle() {
     if (delayInterruptedByCenter || isBallCollectedAtCenter()) {
       stopDrive();
       motor[collectorMotor] = 0;
-      depositResult = runDepositingPhase(DEPOSIT_GATE_MODE_ENABLED);
+      depositResult = runDepositingPhase();
       if (depositResult == DEPOSIT_RESULT_STABLE) {
         return 1;
       }
@@ -868,7 +836,7 @@ int runCompetitionCycle() {
       runPhaseTransitionDelay();
       stopDrive();
       motor[collectorMotor] = 0;
-      depositResult = runDepositingPhase(DEPOSIT_GATE_MODE_ENABLED);
+      depositResult = runDepositingPhase();
       if (depositResult == DEPOSIT_RESULT_STABLE) {
         return 1;
       }
