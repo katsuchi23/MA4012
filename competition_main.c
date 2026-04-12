@@ -22,22 +22,22 @@
 // -------------------------
 // Searching phase constants
 // -------------------------
-const int FRONT_LOWER_BALL_MIN = 900;
+const int FRONT_LOWER_BALL_MIN = 800;
 const int FRONT_UPPER_BALL_MAX = 700;
-const int SEARCH_FORWARD_MS = 1000;
-const int SEARCH_FORWARD_FIRST_CYCLE_MS = 1500;
+const int SEARCH_FORWARD_MS = 1500;
+const int SEARCH_FORWARD_FIRST_CYCLE_MS = 1200;
 const int SEARCH_PRE_ALIGN_SCAN_MS = 2000;
-const int SEARCH_ALIGN_TURN_POWER = 45;
+const int SEARCH_ALIGN_TURN_POWER = 60;
 const int SEARCH_MAX_CYCLES = 3;
 const int SEARCH_ALIGN_TIMEOUT_MS = 5000;
 const int SEARCH_POST_ALIGN_CCW_MS = 100;
-const int BALL_CONFIRM_SAMPLES = 5;
+const int BALL_CONFIRM_SAMPLES = 3;
 const int BALL_DELTA_MIN = 300;
 const int UPPER_SAFETY_BLOCK_MIN = 1800;
 const int SEARCH_SAFETY_REVERSE_MS = 700;
 const int SEARCH_SAFETY_REVERSE_POWER = 100;
 const int DRIVE_FORWARD_POWER = 90;
-const int SEARCH_RIGHT_WHEEL_OFFSET = 0;
+const int SEARCH_RIGHT_WHEEL_OFFSET = 10;
 const int SEARCH_COLLECTOR_POWER = 127;
 
 const int SEARCH_RESULT_NO_BALL = 0;
@@ -49,7 +49,7 @@ const int SEARCH_RESULT_CENTER_CAPTURED = 2;
 // -------------------------
 const int CENTER_BALL_COLLECT_MIN = 1300;
 const int COLLECT_TIMEOUT_MS = 2000;
-const int COLLECT_EXTRA_SPIN_TIMEOUT_MS = 1500;
+const int COLLECT_EXTRA_SPIN_TIMEOUT_MS = 1000;
 const int DRIVE_COLLECT_POWER = 90;
 const int COLLECT_PRE_TURN_POWER = 45;
 const int COLLECT_PRE_TURN_MS = 100;
@@ -67,16 +67,16 @@ const int COLLECT_RESULT_FALSE_DETECT = 2;
 // Depositing phase constants
 // -------------------------
 const int BACK_SENSOR_DONE_MIN        = 2000;
-const int BACK_BOUNDARY_IGNORE_MIN    = 1800;
+const int BACK_BOUNDARY_IGNORE_MIN    = 800;
 const int DEPOSIT_ALIGN_TIMEOUT_MS    = 5000;
-const int DEPOSIT_INITIAL_REVERSE_MS  = 3000;
-const int DEPOSIT_STEP_REVERSE_MS     = 1000;
+const int DEPOSIT_INITIAL_REVERSE_MS  = 4000;
+const int DEPOSIT_STEP_REVERSE_MS     = 2000;
 const int DEPOSIT_TIMEOUT_MS          = 10000;
-const int DRIVE_REVERSE_LEFT_POWER    = 60;
-const int DRIVE_REVERSE_RIGHT_POWER   = 80; // Reverse deposit: right is 10 higher (-70 vs -80)
+const int DRIVE_REVERSE_LEFT_POWER    = 80;
+const int DRIVE_REVERSE_RIGHT_POWER   = 70;
 
 const int GATE_ENCODER_TARGET = 80;
-const int GATE_ENCODER_POST_TARGET = 20;
+const int GATE_ENCODER_POST_TARGET = 10;
 const int GATE_MIN_POWER = 35;
 const int GATE_MAX_POWER = 80;
 const int GATE_OPEN_HOLD_MS = 2000;
@@ -103,7 +103,7 @@ int competitionRunMode = MODE_RUN_CONTINUOUS; // change to MODE_RUN_CONTINUOUS f
 const int floorValue = 1;
 const int boundaryValue = 0;
 const int BOUNDARY_RECOVERY_POWER = 53;
-const int BOUNDARY_FRONT_RECOVERY_MS = 500;
+const int BOUNDARY_FRONT_RECOVERY_MS = 1500;
 const int BOUNDARY_BACK_RECOVERY_MS = 500;
 const int BOUNDARY_ALIGN_TURN_POWER = 55;
 const int BOUNDARY_ALIGN_STABLE_SAMPLES = 3;

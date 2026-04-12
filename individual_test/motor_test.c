@@ -7,11 +7,12 @@
 #pragma config(Sensor, dgtl3,  west,           sensorDigitalIn)
 #pragma config(Sensor, dgtl4,  south,          sensorDigitalIn)
 #pragma config(Sensor, dgtl5,  east,           sensorDigitalIn)
-#pragma config(Sensor, dgtl6,  north,           sensorDigitalIn)
-#pragma config(Sensor, dgtl9,  backRightLine,         sensorDigitalIn)
-#pragma config(Sensor, dgtl10, backLeftLine,          sensorDigitalIn)
-#pragma config(Sensor, dgtl11, frontRightLine,            sensorDigitalIn)
-#pragma config(Sensor, dgtl12, frontLeftLine,            sensorDigitalIn)
+#pragma config(Sensor, dgtl6,  north,          sensorDigitalIn)
+#pragma config(Sensor, dgtl7,  gateEncoder,    sensorQuadEncoder)
+#pragma config(Sensor, dgtl9,  backRightLine,  sensorDigitalIn)
+#pragma config(Sensor, dgtl10, backLeftLine,   sensorDigitalIn)
+#pragma config(Sensor, dgtl11, frontRightLine, sensorDigitalIn)
+#pragma config(Sensor, dgtl12, frontLeftLine,  sensorDigitalIn)
 #pragma config(Motor,  port6,           gateMotor,     tmotorServoStandard, openLoop)
 #pragma config(Motor,  port7,           collectorMotor, tmotorVex393_MC29, openLoop)
 #pragma config(Motor,  port8,           rightWheel,    tmotorVex393_MC29, openLoop)
@@ -33,9 +34,13 @@ task main() {
 
     wait1Msec(100);
 
-   	motor[rightWheel] = -80;
-   	motor[leftWheel] = -60;
+   	motor[rightWheel] = 80;
+   	motor[leftWheel] = 80;
 
+   	wait1Msec(3000);
+   	motor[rightWheel] = 0;
+   	motor[leftWheel] = 0;
+   	wait1Msec(1000);
 
   }
 }
