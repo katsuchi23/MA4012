@@ -119,7 +119,7 @@ int searchLowerTriggered = 0;
 int searchLowerPeak = 0;
 int searchLowerSum = 0;
 int searchLowerSamples = 0;
-int searchLastDetectionCycle = 0;
+int searchLastDetectionCycle = -1;
 int depositSequenceHasRun = 0;
 int searchCenterDetected = 0;
 int boundaryRecoveryActive = 0;
@@ -755,6 +755,8 @@ void recoverAfterDepositFailure() {
 
 void resetCycleState() {
   searchCenterDetected = 0;
+  searchLastDetectionCycle = -1;
+  resetSearchLowerTracking();
   depositSequenceHasRun = 0;
   lastCycleFailureReason = CYCLE_FAILURE_NONE;
 }
@@ -820,11 +822,7 @@ int runCompetitionCycle() {
     if (collectResult == COLLECT_RESULT_FALSE_DETECT) {
       recoverFromCollectFalseDetection();
       motor[collectorMotor] = SEARCH_COLLECTOR_POWER;
-      if (searchLastDetectionCycle < 0) {
-        searchStartCycle = 0;
-      } else {
-        searchStartCycle = searchLastDetectionCycle;
-      }
+      searchStartCycle = 0;
       continue;
     }
 
