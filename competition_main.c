@@ -30,13 +30,14 @@ const int SEARCH_PRE_ALIGN_SCAN_MS = 2000;
 const int SEARCH_ALIGN_TURN_POWER = 45;
 const int SEARCH_MAX_CYCLES = 3;
 const int SEARCH_ALIGN_TIMEOUT_MS = 5000;
+const int SEARCH_POST_ALIGN_CCW_MS = 300;
 const int BALL_CONFIRM_SAMPLES = 5;
 const int BALL_DELTA_MIN = 500;
 const int UPPER_SAFETY_BLOCK_MIN = 1800;
 const int SEARCH_SAFETY_REVERSE_MS = 700;
 const int SEARCH_SAFETY_REVERSE_POWER = 100;
 const int DRIVE_FORWARD_POWER = 90;
-const int SEARCH_RIGHT_WHEEL_OFFSET = 10;
+const int SEARCH_RIGHT_WHEEL_OFFSET = 5;
 const int SEARCH_COLLECTOR_POWER = 127;
 
 const int SEARCH_RESULT_NO_BALL = 0;
@@ -51,7 +52,7 @@ const int COLLECT_TIMEOUT_MS = 2000;
 const int COLLECT_EXTRA_SPIN_TIMEOUT_MS = 1500;
 const int DRIVE_COLLECT_POWER = 90;
 const int COLLECT_PRE_TURN_POWER = 45;
-const int COLLECT_PRE_TURN_MS = 200;
+const int COLLECT_PRE_TURN_MS = 500;
 const int COLLECT_FALSE_UPPER_THRESHOLD = 900;
 const int COLLECT_FALSE_UPPER_STEP_MIN = 3;
 const int COLLECT_FALSE_UPPER_RISE_SAMPLES = 5;
@@ -181,6 +182,7 @@ int detectBoundaryTrigger() {
 
 void turnTowardHeadingCCWOnly(int turnPower) {
   // Alignment policy: always rotate counter-clockwise for stable, repeatable turns.
+  if (turnPower < 0) turnPower = -turnPower;
   turnLeftInPlace(turnPower);
 }
 
@@ -432,6 +434,9 @@ int rotateCCWToEastAndCheckBall(int timeoutMs) {
     }
 
     if (isFacingEastSearch()) {
+      // Requested search behavior: after each EAST alignment, add a small CCW in-place nudge.
+      turnTowardHeadingCCWOnly(SEARCH_ALIGN_TURN_POWER);
+      waitWithBoundaryCheck(SEARCH_POST_ALIGN_CCW_MS);
       stopDrive();
       return SEARCH_RESULT_NO_BALL;
     }
@@ -522,7 +527,7 @@ int runCollectingPhase() {
   }
 
   // Pre-align left-offset front-below sensor before forward retrieval.
-  turnLeftInPlace(COLLECT_PRE_TURN_POWER);
+  turnTowardHeadingCCWOnly(COLLECT_PRE_TURN_POWER);
   waitWithBoundaryCheck(COLLECT_PRE_TURN_MS);
   stopDrive();
 
