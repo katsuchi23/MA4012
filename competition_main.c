@@ -24,14 +24,14 @@
 // -------------------------
 const int FRONT_LOWER_BALL_MIN = 800;
 const int FRONT_UPPER_BALL_MAX = 700;
-const int SEARCH_FORWARD_MS = 1500;
-const int SEARCH_FORWARD_FIRST_CYCLE_MS = 1200;
+const int SEARCH_FORWARD_MS = 1000;
+const int SEARCH_FORWARD_FIRST_CYCLE_MS = 2000;
 const int SEARCH_PRE_ALIGN_SCAN_MS = 2000;
 const int SEARCH_ALIGN_TURN_POWER = 60;
 const int SEARCH_MAX_CYCLES = 3;
 const int SEARCH_ALIGN_TIMEOUT_MS = 5000;
-const int SEARCH_POST_ALIGN_CCW_MS = 100;
-const int SEARCH_INITIAL_BACK_IGNORE_MS = 50;
+const int SEARCH_POST_ALIGN_CCW_MS = 0;
+const int SEARCH_INITIAL_BACK_IGNORE_MS = 500;
 const int BALL_CONFIRM_SAMPLES = 3;
 const int BALL_DELTA_MIN = 300;
 const int UPPER_SAFETY_BLOCK_MIN = 1800;
@@ -49,7 +49,7 @@ const int SEARCH_RESULT_CENTER_CAPTURED = 2;
 // Collecting phase constants
 // -------------------------
 const int CENTER_BALL_COLLECT_MIN = 1300;
-const int COLLECT_TIMEOUT_MS = 2000;
+const int COLLECT_TIMEOUT_MS = 2300;
 const int COLLECT_EXTRA_SPIN_TIMEOUT_MS = 1000;
 const int DRIVE_COLLECT_POWER = 90;
 const int COLLECT_PRE_TURN_POWER = 45;
@@ -73,11 +73,11 @@ const int DEPOSIT_ALIGN_TIMEOUT_MS    = 5000;
 const int DEPOSIT_INITIAL_REVERSE_MS  = 4000;
 const int DEPOSIT_STEP_REVERSE_MS     = 2000;
 const int DEPOSIT_TIMEOUT_MS          = 10000;
-const int DRIVE_REVERSE_LEFT_POWER    = 80;
+const int DRIVE_REVERSE_LEFT_POWER    = 85;
 const int DRIVE_REVERSE_RIGHT_POWER   = 60;
 
 const int GATE_ENCODER_TARGET = 80;
-const int GATE_ENCODER_POST_TARGET = 10;
+const int GATE_ENCODER_POST_TARGET = 20;
 const int GATE_MIN_POWER = 35;
 const int GATE_MAX_POWER = 80;
 const int GATE_OPEN_HOLD_MS = 2000;
@@ -104,8 +104,8 @@ int competitionRunMode = MODE_RUN_CONTINUOUS; // change to MODE_RUN_CONTINUOUS f
 const int floorValue = 1;
 const int boundaryValue = 0;
 const int BOUNDARY_RECOVERY_POWER = 53;
-const int BOUNDARY_FRONT_RECOVERY_MS = 1500;
-const int BOUNDARY_BACK_RECOVERY_MS = 500;
+const int BOUNDARY_FRONT_RECOVERY_MS = 1000;
+const int BOUNDARY_BACK_RECOVERY_MS = 1000;
 const int BOUNDARY_ALIGN_TURN_POWER = 55;
 const int BOUNDARY_ALIGN_STABLE_SAMPLES = 3;
 
