@@ -46,7 +46,7 @@ const int SEARCH_RESULT_CENTER_CAPTURED = 2;
 // -------------------------
 // Collecting phase constants
 // -------------------------
-const int CENTER_BALL_COLLECT_MIN = 500;
+const int CENTER_BALL_COLLECT_MIN = 1300;
 const int COLLECT_TIMEOUT_MS = 2000;
 const int COLLECT_EXTRA_SPIN_TIMEOUT_MS = 1500;
 const int DRIVE_COLLECT_POWER = 90;
@@ -65,9 +65,9 @@ const int COLLECT_RESULT_FALSE_DETECT = 2;
 // -------------------------
 // Depositing phase constants
 // -------------------------
-const int BACK_SENSOR_DONE_MIN        = 4000;
+const int BACK_SENSOR_DONE_MIN        = 1800;
 const int BACK_BOUNDARY_IGNORE_MIN    = 800;
-const int DEPOSIT_ALIGN_TIMEOUT_MS    = 2000;
+const int DEPOSIT_ALIGN_TIMEOUT_MS    = 5000;
 const int DEPOSIT_INITIAL_REVERSE_MS  = 3000;
 const int DEPOSIT_STEP_REVERSE_MS     = 1000;
 const int DEPOSIT_TIMEOUT_MS          = 10000;
@@ -128,6 +128,7 @@ int lastCycleFailureReason = CYCLE_FAILURE_NONE;
 int isBallCollectedAtCenter();
 int checkAndHandleBoundaryRecovery();
 void waitWithBoundaryCheck(int durationMs);
+int isDepositCompleteNow();
 
 void setDrive(int leftPower, int rightPower) {
   motor[leftWheel] = leftPower;
@@ -645,31 +646,19 @@ int reverseStraightAndCheckBack(int durationMs) {
   }
 
   while ((nSysTime - startTime) < durationMs) {
-    if (SensorValue[backLight] > BACK_SENSOR_DONE_MIN) {
-      stopDrive();
-
-      if (!isFacingEast()) {
-        alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
-      }
-
-      if (!(SensorValue[backLight] > BACK_SENSOR_DONE_MIN && isFacingEast())) {
-        setDepositReverseDrive();
-        checkAndHandleBoundaryRecoveryForDepositReverse();
-        wait1Msec(20);
-        continue;
-      }
-
-      openGateByEncoder();
-      return 1;
-    }
-
     setDepositReverseDrive();
     checkAndHandleBoundaryRecoveryForDepositReverse();
     wait1Msec(20);
   }
 
   stopDrive();
-  return 0;
+
+  if (!isFacingEast()) {
+    alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
+    stopDrive();
+  }
+
+  return isDepositCompleteNow();
 }
 
 int isDepositCompleteNow() {
@@ -680,9 +669,9 @@ int isDepositCompleteNow() {
 
 int runDepositingPhase() {
   int phaseStart = nSysTime;
-  int backValue = 0;
   int facingEast = 0;
-  int depositCycle = 1;
+  // Gate opening is blocked until the first 3s reverse segment is fully complete.
+  int initialReverseComplete = 0;
 
   if (depositSequenceHasRun) {
     stopDrive();
@@ -692,15 +681,20 @@ int runDepositingPhase() {
   depositSequenceHasRun = 1;
   alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
 
-  if (reverseStraightAndCheckBack(DEPOSIT_INITIAL_REVERSE_MS)) {
+  reverseStraightAndCheckBack(DEPOSIT_INITIAL_REVERSE_MS);
+  initialReverseComplete = 1;
+
+  stopDrive();
+  if (initialReverseComplete && isDepositCompleteNow()) {
+    openGateByEncoder();
     return DEPOSIT_RESULT_STABLE;
   }
 
   while ((nSysTime - phaseStart) < DEPOSIT_TIMEOUT_MS) {
-    backValue = SensorValue[backLight];
     facingEast = isFacingEast();
 
-    if (isDepositCompleteNow()) {
+    stopDrive();
+    if (initialReverseComplete && isDepositCompleteNow()) {
       openGateByEncoder();
       return DEPOSIT_RESULT_STABLE;
     }
@@ -709,10 +703,12 @@ int runDepositingPhase() {
       alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
     }
 
-    if (reverseStraightAndCheckBack(DEPOSIT_STEP_REVERSE_MS)) {
+    if (reverseStraightAndCheckBack(DEPOSIT_STEP_REVERSE_MS) &&
+        initialReverseComplete && isDepositCompleteNow()) {
+      stopDrive();
+      openGateByEncoder();
       return DEPOSIT_RESULT_STABLE;
     }
-    depositCycle++;
   }
 
   stopDrive();

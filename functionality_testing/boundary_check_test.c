@@ -88,7 +88,7 @@ int detectBoundaryTrigger() {
 
   if (frontTriggered && backTriggered) return TRIGGER_BOTH;
   if (frontTriggered) return TRIGGER_FRONT;
-  if (backTriggered) return TRIGGER_BACK;
+  if (backTriggered) return TRIGGER_BACK;can ouy 
   return TRIGGER_NONE;
 }
 
