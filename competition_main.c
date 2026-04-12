@@ -31,13 +31,14 @@ const int SEARCH_ALIGN_TURN_POWER = 60;
 const int SEARCH_MAX_CYCLES = 3;
 const int SEARCH_ALIGN_TIMEOUT_MS = 5000;
 const int SEARCH_POST_ALIGN_CCW_MS = 100;
+const int SEARCH_INITIAL_BACK_IGNORE_MS = 50;
 const int BALL_CONFIRM_SAMPLES = 3;
 const int BALL_DELTA_MIN = 300;
 const int UPPER_SAFETY_BLOCK_MIN = 1800;
 const int SEARCH_SAFETY_REVERSE_MS = 700;
 const int SEARCH_SAFETY_REVERSE_POWER = 100;
 const int DRIVE_FORWARD_POWER = 90;
-const int SEARCH_RIGHT_WHEEL_OFFSET = 10;
+const int SEARCH_RIGHT_WHEEL_OFFSET = 15;
 const int SEARCH_COLLECTOR_POWER = 127;
 
 const int SEARCH_RESULT_NO_BALL = 0;
@@ -73,7 +74,7 @@ const int DEPOSIT_INITIAL_REVERSE_MS  = 4000;
 const int DEPOSIT_STEP_REVERSE_MS     = 2000;
 const int DEPOSIT_TIMEOUT_MS          = 10000;
 const int DRIVE_REVERSE_LEFT_POWER    = 80;
-const int DRIVE_REVERSE_RIGHT_POWER   = 70;
+const int DRIVE_REVERSE_RIGHT_POWER   = 60;
 
 const int GATE_ENCODER_TARGET = 80;
 const int GATE_ENCODER_POST_TARGET = 10;
@@ -123,6 +124,7 @@ int searchLowerSamples = 0;
 int searchLastDetectionCycle = -1;
 int depositSequenceHasRun = 0;
 int searchCenterDetected = 0;
+int searchPhaseStartTimeMs = 0;
 int boundaryRecoveryActive = 0;
 int lastCycleFailureReason = CYCLE_FAILURE_NONE;
 
@@ -130,6 +132,10 @@ int isBallCollectedAtCenter();
 int checkAndHandleBoundaryRecovery();
 void waitWithBoundaryCheck(int durationMs);
 int isDepositCompleteNow();
+
+int isSearchBackBoundaryIgnoreActive() {
+  return ((nSysTime - searchPhaseStartTimeMs) < SEARCH_INITIAL_BACK_IGNORE_MS);
+}
 
 void setDrive(int leftPower, int rightPower) {
   motor[leftWheel] = leftPower;
@@ -173,6 +179,20 @@ int backBoundaryDetected() {
 int detectBoundaryTrigger() {
   int frontTriggered = frontBoundaryDetected();
   int backTriggered = backBoundaryDetected();
+
+  if (frontTriggered && backTriggered) return BOUNDARY_TRIGGER_BOTH;
+  if (frontTriggered) return BOUNDARY_TRIGGER_FRONT;
+  if (backTriggered) return BOUNDARY_TRIGGER_BACK;
+  return BOUNDARY_TRIGGER_NONE;
+}
+
+int detectBoundaryTriggerForSearch() {
+  int frontTriggered = frontBoundaryDetected();
+  int backTriggered = backBoundaryDetected();
+
+  if (isSearchBackBoundaryIgnoreActive()) {
+    backTriggered = 0;
+  }
 
   if (frontTriggered && backTriggered) return BOUNDARY_TRIGGER_BOTH;
   if (frontTriggered) return BOUNDARY_TRIGGER_FRONT;
@@ -250,6 +270,22 @@ int checkAndHandleBoundaryRecovery() {
   return 1;
 }
 
+int checkAndHandleBoundaryRecoveryForSearch() {
+  int trigger = BOUNDARY_TRIGGER_NONE;
+
+  if (boundaryRecoveryActive) {
+    return 0;
+  }
+
+  trigger = detectBoundaryTriggerForSearch();
+  if (trigger == BOUNDARY_TRIGGER_NONE) {
+    return 0;
+  }
+
+  recoverFromBoundary(trigger);
+  return 1;
+}
+
 int checkAndHandleBoundaryRecoveryForDepositReverse() {
   int trigger = BOUNDARY_TRIGGER_NONE;
 
@@ -276,6 +312,19 @@ void waitWithBoundaryCheck(int durationMs) {
 
   while (remaining > 0) {
     checkAndHandleBoundaryRecovery();
+    {
+      int waitStep = (remaining > 10) ? 10 : remaining;
+      wait1Msec(waitStep);
+      remaining -= waitStep;
+    }
+  }
+}
+
+void waitWithBoundaryCheckForSearch(int durationMs) {
+  int remaining = durationMs;
+
+  while (remaining > 0) {
+    checkAndHandleBoundaryRecoveryForSearch();
     {
       int waitStep = (remaining > 10) ? 10 : remaining;
       wait1Msec(waitStep);
@@ -328,7 +377,7 @@ int handleUpperSafetyReverse() {
   }
 
   setSearchSafetyReverseDrive();
-  waitWithBoundaryCheck(SEARCH_SAFETY_REVERSE_MS);
+  waitWithBoundaryCheckForSearch(SEARCH_SAFETY_REVERSE_MS);
   stopDrive();
   return 1;
 }
@@ -362,7 +411,7 @@ int runForwardAndCheckBall(int durationMs) {
     }
 
     setSearchForwardDrive();
-    waitWithBoundaryCheck(20);
+    waitWithBoundaryCheckForSearch(20);
   }
 
   stopDrive();
@@ -398,7 +447,7 @@ int rotateCCWForScanAndCheckBall(int durationMs) {
     }
 
     turnLeftInPlace(SEARCH_ALIGN_TURN_POWER);
-    waitWithBoundaryCheck(20);
+    waitWithBoundaryCheckForSearch(20);
   }
 
   stopDrive();
@@ -436,13 +485,13 @@ int rotateCCWToEastAndCheckBall(int timeoutMs) {
     if (isFacingEastSearch()) {
       // Requested search behavior: after each EAST alignment, add a small CCW in-place nudge.
       turnTowardHeadingCCWOnly(SEARCH_ALIGN_TURN_POWER);
-      waitWithBoundaryCheck(SEARCH_POST_ALIGN_CCW_MS);
+      waitWithBoundaryCheckForSearch(SEARCH_POST_ALIGN_CCW_MS);
       stopDrive();
       return SEARCH_RESULT_NO_BALL;
     }
 
     turnTowardHeadingCCWOnly(SEARCH_ALIGN_TURN_POWER); // Target = EAST via CCW-only turning
-    waitWithBoundaryCheck(10);
+    waitWithBoundaryCheckForSearch(10);
   }
 
   stopDrive();
@@ -454,6 +503,7 @@ int runSearchingPhase(int startCycle) {
   int forwardDurationMs = SEARCH_FORWARD_MS;
   int searchStepResult = SEARCH_RESULT_NO_BALL;
   searchCenterDetected = 0;
+  searchPhaseStartTimeMs = nSysTime;
 
 
   for (cycle = startCycle; cycle < SEARCH_MAX_CYCLES; cycle++) {
@@ -761,7 +811,6 @@ void recoverAfterPhaseFailure() {
   depositSequenceHasRun = 0; // allow recovery deposit to run even if this cycle touched deposit state
   depositResult = runDepositingPhase();
   stopDrive();
-  waitWithBoundaryCheck(120);
 }
 
 void recoverAfterDepositFailure() {
@@ -769,7 +818,6 @@ void recoverAfterDepositFailure() {
   stopDrive();
   forceGateOpenWithFinalReverse();
   stopDrive();
-  waitWithBoundaryCheck(120);
 }
 
 void resetCycleState() {
@@ -884,7 +932,6 @@ task main() {
       }
     } else {
       stopDrive();
-      waitWithBoundaryCheck(120);
     }
   }
 
