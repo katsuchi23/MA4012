@@ -66,8 +66,8 @@ const int COLLECT_RESULT_FALSE_DETECT = 2;
 // -------------------------
 // Depositing phase constants
 // -------------------------
-const int BACK_SENSOR_DONE_MIN        = 1800;
-const int BACK_BOUNDARY_IGNORE_MIN    = 800;
+const int BACK_SENSOR_DONE_MIN        = 2000;
+const int BACK_BOUNDARY_IGNORE_MIN    = 1000;
 const int DEPOSIT_ALIGN_TIMEOUT_MS    = 5000;
 const int DEPOSIT_INITIAL_REVERSE_MS  = 3000;
 const int DEPOSIT_STEP_REVERSE_MS     = 1000;
@@ -75,8 +75,8 @@ const int DEPOSIT_TIMEOUT_MS          = 10000;
 const int DRIVE_REVERSE_LEFT_POWER    = 80;
 const int DRIVE_REVERSE_RIGHT_POWER   = 70; // Reverse deposit: right is 10 higher (-70 vs -80)
 
-const int GATE_ENCODER_TARGET = 90;
-const int GATE_ENCODER_POST_TARGET = 0;
+const int GATE_ENCODER_TARGET = 80;
+const int GATE_ENCODER_POST_TARGET = 20;
 const int GATE_MIN_POWER = 35;
 const int GATE_MAX_POWER = 80;
 const int GATE_OPEN_HOLD_MS = 5000;
@@ -646,13 +646,29 @@ void openGateByEncoder() {
 }
 
 int reverseStraightAndCheckBack(int durationMs) {
+  int startTime = 0;
+
   // Deposit must always align EAST first before reversing.
   while (!isFacingEast()) {
     alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
   }
 
-  setDepositReverseDrive();
-  wait1Msec(durationMs);
+  startTime = nSysTime;
+  while ((nSysTime - startTime) < durationMs) {
+    // Deposit uses a dedicated boundary policy:
+    // ignore back-line triggers only when backLight is above BACK_BOUNDARY_IGNORE_MIN.
+    if (checkAndHandleBoundaryRecoveryForDepositReverse()) {
+      continue;
+    }
+
+    if (isDepositCompleteNow()) {
+      stopDrive();
+      return 1;
+    }
+
+    setDepositReverseDrive();
+    wait1Msec(20);
+  }
 
   stopDrive();
 
