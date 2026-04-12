@@ -67,7 +67,7 @@ const int COLLECT_RESULT_FALSE_DETECT = 2;
 // Depositing phase constants
 // -------------------------
 const int BACK_SENSOR_DONE_MIN        = 2000;
-const int BACK_BOUNDARY_IGNORE_MIN    = 1000;
+const int BACK_BOUNDARY_IGNORE_MIN    = 1800;
 const int DEPOSIT_ALIGN_TIMEOUT_MS    = 5000;
 const int DEPOSIT_INITIAL_REVERSE_MS  = 3000;
 const int DEPOSIT_STEP_REVERSE_MS     = 1000;
