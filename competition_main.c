@@ -614,42 +614,40 @@ void openGateByEncoder() {
   int closePrevAbsError = GATE_ENCODER_POST_TARGET;
   int gatePower = 0;
 
+  // Gate operation should not be interrupted by boundary handling.
+  stopDrive();
+  wait1Msec(40);
+
 
   while (SensorValue[gateEncoder] < GATE_ENCODER_TARGET) {
     gatePower = gatePdPowerForTarget(GATE_ENCODER_TARGET, SensorValue[gateEncoder], &openPrevAbsError);
     motor[gateMotor] = -gatePower;
-    waitWithBoundaryCheck(20);
+    wait1Msec(20);
   }
 
   motor[gateMotor] = 0;
-  waitWithBoundaryCheck(GATE_OPEN_HOLD_MS);
+  wait1Msec(GATE_OPEN_HOLD_MS);
 
   while (SensorValue[gateEncoder] > GATE_ENCODER_POST_TARGET) {
     gatePower = gatePdPowerForTarget(GATE_ENCODER_POST_TARGET, SensorValue[gateEncoder], &closePrevAbsError);
     motor[gateMotor] = gatePower;
-    waitWithBoundaryCheck(20);
+    wait1Msec(20);
   }
 
   motor[gateMotor] = 0;
-  waitWithBoundaryCheck(500);
+  wait1Msec(500);
 
   motor[gateMotor] = 0;
 }
 
 int reverseStraightAndCheckBack(int durationMs) {
-  int startTime = nSysTime;
-
   // Deposit must always align EAST first before reversing.
   while (!isFacingEast()) {
     alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
-    waitWithBoundaryCheck(20);
   }
 
-  while ((nSysTime - startTime) < durationMs) {
-    setDepositReverseDrive();
-    checkAndHandleBoundaryRecoveryForDepositReverse();
-    wait1Msec(20);
-  }
+  setDepositReverseDrive();
+  wait1Msec(durationMs);
 
   stopDrive();
 
@@ -667,9 +665,17 @@ int isDepositCompleteNow() {
   return (backValue > BACK_SENSOR_DONE_MIN && facingEast);
 }
 
+void forceGateOpenWithFinalReverse() {
+  // Timeout fallback: perform one final deterministic reverse segment, then force gate open.
+  alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
+  reverseStraightAndCheckBack(DEPOSIT_STEP_REVERSE_MS);
+  stopDrive();
+  openGateByEncoder();
+}
+
 int runDepositingPhase() {
   int phaseStart = nSysTime;
-  int facingEast = 0;
+  int reverseCompletedAtTarget = 0;
   // Gate opening is blocked until the first 3s reverse segment is fully complete.
   int initialReverseComplete = 0;
 
@@ -681,38 +687,30 @@ int runDepositingPhase() {
   depositSequenceHasRun = 1;
   alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
 
-  reverseStraightAndCheckBack(DEPOSIT_INITIAL_REVERSE_MS);
+  reverseCompletedAtTarget = reverseStraightAndCheckBack(DEPOSIT_INITIAL_REVERSE_MS);
   initialReverseComplete = 1;
 
   stopDrive();
-  if (initialReverseComplete && isDepositCompleteNow()) {
+  if (initialReverseComplete && reverseCompletedAtTarget) {
     openGateByEncoder();
     return DEPOSIT_RESULT_STABLE;
   }
 
   while ((nSysTime - phaseStart) < DEPOSIT_TIMEOUT_MS) {
-    facingEast = isFacingEast();
+    // After each completed segment, re-align then run the next full reverse segment.
+    alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
 
-    stopDrive();
-    if (initialReverseComplete && isDepositCompleteNow()) {
-      openGateByEncoder();
-      return DEPOSIT_RESULT_STABLE;
-    }
-
-    if (!facingEast) {
-      alignToEastCCW(DEPOSIT_ALIGN_TIMEOUT_MS);
-    }
-
-    if (reverseStraightAndCheckBack(DEPOSIT_STEP_REVERSE_MS) &&
-        initialReverseComplete && isDepositCompleteNow()) {
+    reverseCompletedAtTarget = reverseStraightAndCheckBack(DEPOSIT_STEP_REVERSE_MS);
+    if (reverseCompletedAtTarget && initialReverseComplete) {
       stopDrive();
       openGateByEncoder();
       return DEPOSIT_RESULT_STABLE;
     }
   }
 
-  stopDrive();
-  return DEPOSIT_RESULT_TIMEOUT;
+  // Timed out: run one final 1s reverse attempt, then force gate open.
+  forceGateOpenWithFinalReverse();
+  return DEPOSIT_RESULT_STABLE;
 }
 
 // -------------------------
@@ -748,7 +746,7 @@ void recoverAfterPhaseFailure() {
 void recoverAfterDepositFailure() {
   motor[collectorMotor] = 0;
   stopDrive();
-  openGateByEncoder();
+  forceGateOpenWithFinalReverse();
   stopDrive();
   waitWithBoundaryCheck(120);
 }
